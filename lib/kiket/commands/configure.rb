@@ -55,11 +55,11 @@ module Kiket
       desc "list", "List all configuration values"
       def list
         puts "Current configuration:"
-        puts "  API URL: #{config.api_base_url || '(not set)'}"
-        puts "  Default org: #{config.default_org || '(not set)'}"
+        puts "  API URL: #{config.api_base_url || "(not set)"}"
+        puts "  Default org: #{config.default_org || "(not set)"}"
         puts "  Output format: #{config.output_format}"
         puts "  Verbose: #{config.verbose}"
-        puts "  Token: #{config.authenticated? ? '[set]' : '(not set)'}"
+        puts "  Token: #{config.authenticated? ? "[set]" : "(not set)"}"
         puts ""
         puts "Config file: #{Config::CONFIG_FILE}"
       rescue StandardError => e

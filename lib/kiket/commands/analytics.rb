@@ -38,9 +38,9 @@ module Kiket
         series = response.fetch("series", {})
 
         if output_format == "human"
-          puts "\n#{pastel.bold('Usage Report')}"
+          puts "\n#{pastel.bold("Usage Report")}"
           puts "Organization: #{org}"
-          puts "Period: #{response['start_at']} → #{response['end_at']}"
+          puts "Period: #{response["start_at"]} → #{response["end_at"]}"
           puts ""
 
           if totals.empty?
@@ -63,7 +63,7 @@ module Kiket
           puts table.render(:unicode, padding: [0, 1])
 
           unless series.empty?
-            puts "\n#{pastel.bold('Daily Breakdown')}"
+            puts "\n#{pastel.bold("Daily Breakdown")}"
             series.each do |metric, timeline|
               puts pastel.cyan("  #{metric}")
               timeline.sort.each do |date, quantity|
@@ -112,16 +112,16 @@ module Kiket
         spinner.success("Report generated")
 
         if output_format == "human"
-          puts "\n#{pastel.bold('Billing Report')}"
+          puts "\n#{pastel.bold("Billing Report")}"
           puts "Organization: #{org}"
-          puts "Period: #{response['start_at']} → #{response['end_at']}"
+          puts "Period: #{response["start_at"]} → #{response["end_at"]}"
           puts ""
 
           totals = response.fetch("totals", {})
           puts pastel.bold("Totals:")
-          puts "  Invoiced: #{format_currency(totals['invoiced_cents'])}"
-          puts "  Paid: #{format_currency(totals['paid_cents'])}"
-          puts "  Outstanding: #{format_currency(totals['outstanding_cents'])}"
+          puts "  Invoiced: #{format_currency(totals["invoiced_cents"])}"
+          puts "  Paid: #{format_currency(totals["paid_cents"])}"
+          puts "  Outstanding: #{format_currency(totals["outstanding_cents"])}"
           puts ""
 
           invoices = response.fetch("invoices", [])
@@ -130,11 +130,11 @@ module Kiket
           else
             puts pastel.bold("Invoices:")
             invoices.each do |invoice|
-              puts "  #{invoice['stripe_invoice_id'] || invoice['id']}"
-              puts "    Status: #{invoice['status']}"
-              puts "    Amount: #{format_currency(invoice['amount_cents'])}"
-              puts "    Issued: #{invoice['issued_at']}"
-              puts "    Paid: #{invoice['paid_at'] || '—'}"
+              puts "  #{invoice["stripe_invoice_id"] || invoice["id"]}"
+              puts "    Status: #{invoice["status"]}"
+              puts "    Amount: #{format_currency(invoice["amount_cents"])}"
+              puts "    Issued: #{invoice["issued_at"]}"
+              puts "    Paid: #{invoice["paid_at"] || "—"}"
             end
           end
         else
@@ -159,7 +159,7 @@ module Kiket
         params[:product_installation] = options[:product] if options[:product]
 
         response = client.post("/api/v1/analytics/dashboard/token", body: params)
-        dashboard_url = "#{config.api_base_url}/analytics/dashboard?token=#{response['token']}"
+        dashboard_url = "#{config.api_base_url}/analytics/dashboard?token=#{response["token"]}"
 
         info "Opening dashboard in browser..."
 

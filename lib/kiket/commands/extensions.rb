@@ -14,11 +14,11 @@ module Kiket
         ensure_authenticated!
 
         template_type = options[:template] || prompt.select("Select extension template:", %w[
-          webhook_guard
-          outbound_integration
-          notification_pack
-          custom
-        ])
+                                                              webhook_guard
+                                                              outbound_integration
+                                                              notification_pack
+                                                              custom
+                                                            ])
 
         sdk = options[:sdk]
         dir = File.join(Dir.pwd, name)
@@ -126,10 +126,10 @@ module Kiket
         # Run SDK-specific linting
         if File.exist?(File.join(path, "requirements.txt"))
           info "Running Python linting..."
-          system("cd #{path} && ruff check . #{options[:fix] ? '--fix' : ''}")
+          system("cd #{path} && ruff check . #{"--fix" if options[:fix]}")
         elsif File.exist?(File.join(path, "package.json"))
           info "Running TypeScript linting..."
-          system("cd #{path} && npm run lint #{options[:fix] ? '-- --fix' : ''}")
+          system("cd #{path} && npm run lint #{"-- --fix" if options[:fix]}")
         end
       rescue StandardError => e
         handle_error(e)
@@ -183,7 +183,7 @@ module Kiket
 
         # Check for remote
         require "open3"
-        stdout, stderr, status = Open3.capture3("git -C #{path} remote get-url origin")
+        stdout, _, status = Open3.capture3("git -C #{path} remote get-url origin")
 
         unless status.success?
           error "No git remote 'origin' configured"
@@ -202,7 +202,7 @@ module Kiket
         # Check for uncommitted changes
         stdout, = Open3.capture3("git -C #{path} status --porcelain")
 
-        if stdout.strip.length > 0
+        if stdout.strip.length.positive?
           warning "Uncommitted changes detected"
           info "Commit changes before publishing"
         end
@@ -251,9 +251,9 @@ module Kiket
         commit_sha = commit_sha.strip[0..7]
 
         puts pastel.bold("\nPublish Extension:")
-        puts "  ID: #{manifest.dig('extension', 'id')}"
-        puts "  Name: #{manifest.dig('extension', 'name')}"
-        puts "  Version: #{manifest.dig('extension', 'version')}"
+        puts "  ID: #{manifest.dig("extension", "id")}"
+        puts "  Name: #{manifest.dig("extension", "name")}"
+        puts "  Version: #{manifest.dig("extension", "version")}"
         puts "  Repository: #{remote_url}"
         puts "  Ref: #{git_ref}"
         puts "  Commit: #{commit_sha}"
@@ -271,20 +271,20 @@ module Kiket
 
         # Publish via GitHub repository reference
         response = client.post("/api/v1/extensions/registry/#{options[:registry]}/publish",
-                                body: {
-                                  manifest: manifest,
-                                  repository: {
-                                    url: remote_url,
-                                    ref: git_ref,
-                                    commit_sha: commit_sha
-                                  }
-                                })
+                               body: {
+                                 manifest: manifest,
+                                 repository: {
+                                   url: remote_url,
+                                   ref: git_ref,
+                                   commit_sha: commit_sha
+                                 }
+                               })
 
         spinner.success("Published")
         success "Extension published successfully"
         info "Registry: #{options[:registry]}"
-        info "Version: #{response['version']}"
-        info "Extension ID: #{response['extension_id']}" if response["extension_id"]
+        info "Version: #{response["version"]}"
+        info "Extension ID: #{response["extension_id"]}" if response["extension_id"]
       rescue StandardError => e
         handle_error(e)
       end
@@ -306,11 +306,11 @@ module Kiket
             manifest = YAML.load_file(manifest_path)
             checks << { name: "Manifest syntax", status: :ok, message: "Valid YAML" }
 
-            if manifest.dig("extension", "id")
-              checks << { name: "Extension ID", status: :ok, message: manifest.dig("extension", "id") }
-            else
-              checks << { name: "Extension ID", status: :error, message: "Missing" }
-            end
+            checks << if manifest.dig("extension", "id")
+                        { name: "Extension ID", status: :ok, message: manifest.dig("extension", "id") }
+                      else
+                        { name: "Extension ID", status: :error, message: "Missing" }
+                      end
           rescue StandardError => e
             checks << { name: "Manifest syntax", status: :error, message: e.message }
           end
@@ -338,18 +338,18 @@ module Kiket
         # Check for tests
         test_files = Dir.glob("#{path}/{test,spec,tests}/**/*_test.{py,rb,js,ts}") +
                      Dir.glob("#{path}/{test,spec,tests}/**/*_spec.{py,rb,js,ts}")
-        if test_files.any?
-          checks << { name: "Tests", status: :ok, message: "#{test_files.size} test files found" }
-        else
-          checks << { name: "Tests", status: :warning, message: "No test files found" }
-        end
+        checks << if test_files.any?
+                    { name: "Tests", status: :ok, message: "#{test_files.size} test files found" }
+                  else
+                    { name: "Tests", status: :warning, message: "No test files found" }
+                  end
 
         # Check for documentation
-        if File.exist?(File.join(path, "README.md"))
-          checks << { name: "Documentation", status: :ok, message: "README.md present" }
-        else
-          checks << { name: "Documentation", status: :warning, message: "No README.md" }
-        end
+        checks << if File.exist?(File.join(path, "README.md"))
+                    { name: "Documentation", status: :ok, message: "README.md present" }
+                  else
+                    { name: "Documentation", status: :warning, message: "No README.md" }
+                  end
 
         # Display results
         checks.each do |check|
@@ -414,13 +414,13 @@ module Kiket
         when "outbound_integration"
           ["after_transition"]
         when "notification_pack"
-          ["after_transition", "issue_created", "issue_updated"]
+          %w[after_transition issue_created issue_updated]
         else
           []
         end
       end
 
-      def generate_python_extension(dir, name, template_type)
+      def generate_python_extension(dir, name, _template_type)
         # Create directory structure
         src_dir = File.join(dir, "src")
         FileUtils.mkdir_p(src_dir)
@@ -479,7 +479,7 @@ module Kiket
           from setuptools import setup, find_packages
 
           setup(
-              name="#{name.tr(' ', '_').downcase}",
+              name="#{name.tr(" ", "_").downcase}",
               version="1.0.0",
               packages=find_packages(where="src"),
               package_dir={"": "src"},
@@ -490,7 +490,7 @@ module Kiket
         SETUP
       end
 
-      def generate_typescript_extension(dir, name, template_type)
+      def generate_typescript_extension(dir, name, _template_type)
         src_dir = File.join(dir, "src")
         FileUtils.mkdir_p(src_dir)
 
@@ -526,7 +526,7 @@ module Kiket
 
         File.write(File.join(dir, "package.json"), <<~JSON)
           {
-            "name": "#{name.tr(' ', '-').downcase}",
+            "name": "#{name.tr(" ", "-").downcase}",
             "version": "1.0.0",
             "main": "dist/handler.js",
             "scripts": {
@@ -563,7 +563,7 @@ module Kiket
         JSON
       end
 
-      def generate_ruby_extension(dir, name, template_type)
+      def generate_ruby_extension(dir, name, _template_type)
         lib_dir = File.join(dir, "lib")
         FileUtils.mkdir_p(lib_dir)
 
@@ -693,7 +693,7 @@ module Kiket
         GITIGNORE
       end
 
-      def generate_tests(dir, sdk, template_type)
+      def generate_tests(dir, sdk, _template_type)
         case sdk
         when "python"
           test_dir = File.join(dir, "tests")

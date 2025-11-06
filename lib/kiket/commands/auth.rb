@@ -34,8 +34,8 @@ module Kiket
           config.save
 
           success "Logged in successfully"
-          info "Organization: #{response['organization']['name']}" if response["organization"]
-          info "User: #{response['email']}" if response["email"]
+          info "Organization: #{response["organization"]["name"]}" if response["organization"]
+          info "User: #{response["email"]}" if response["email"]
         rescue APIError => e
           spinner.error("Authentication failed")
           handle_error(e)
@@ -62,8 +62,8 @@ module Kiket
 
           begin
             response = client.get("/api/v1/me")
-            info "User: #{response['email']}" if response["email"]
-            info "Organization: #{response['organization']['name']}" if response["organization"]
+            info "User: #{response["email"]}" if response["email"]
+            info "Organization: #{response["organization"]["name"]}" if response["organization"]
           rescue APIError
             warning "Token may be invalid or expired"
           end
@@ -78,9 +78,7 @@ module Kiket
       desc "token", "Display current API token"
       def token
         if config.authenticated?
-          if prompt.yes?("Show API token? (Will be visible on screen)")
-            puts config.api_token
-          end
+          puts config.api_token if prompt.yes?("Show API token? (Will be visible on screen)")
         else
           warning "Not authenticated"
         end

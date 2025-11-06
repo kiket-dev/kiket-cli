@@ -9,7 +9,8 @@ Gem::Specification.new do |spec|
   spec.email = ["team@kiket.dev"]
 
   spec.summary = "Official CLI for Kiket workflow automation platform"
-  spec.description = "Command-line interface for managing Kiket marketplace products, extensions, workflows, and secrets"
+  spec.description = "Command-line interface for managing Kiket marketplace products, extensions, " \
+                     "workflows, and secrets"
   spec.homepage = "https://kiket.dev"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
@@ -36,16 +37,16 @@ Gem::Specification.new do |spec|
   spec.add_dependency "multi_json", "~> 1.15"
 
   # Terminal output
+  spec.add_dependency "pastel", "~> 0.8"
   spec.add_dependency "tty-prompt", "~> 0.23"
   spec.add_dependency "tty-spinner", "~> 0.9"
   spec.add_dependency "tty-table", "~> 0.12"
-  spec.add_dependency "pastel", "~> 0.8"
 
   # Development dependencies
+  spec.add_development_dependency "pry", "~> 0.14"
   spec.add_development_dependency "rspec", "~> 3.12"
-  spec.add_development_dependency "webmock", "~> 3.18"
-  spec.add_development_dependency "vcr", "~> 6.1"
   spec.add_development_dependency "rubocop", "~> 1.50"
   spec.add_development_dependency "rubocop-rspec", "~> 2.20"
-  spec.add_development_dependency "pry", "~> 0.14"
+  spec.add_development_dependency "vcr", "~> 6.1"
+  spec.add_development_dependency "webmock", "~> 3.18"
 end

@@ -33,8 +33,8 @@ VCR.configure do |config|
   config.cassette_library_dir = "spec/fixtures/vcr_cassettes"
   config.hook_into :webmock
   config.configure_rspec_metadata!
-  config.filter_sensitive_data("<API_TOKEN>") { ENV["KIKET_API_TOKEN"] }
-  config.filter_sensitive_data("<API_URL>") { ENV["KIKET_API_URL"] }
+  config.filter_sensitive_data("<API_TOKEN>") { ENV.fetch("KIKET_API_TOKEN", nil) }
+  config.filter_sensitive_data("<API_URL>") { ENV.fetch("KIKET_API_URL", nil) }
 end
 
 # Helper to create a test config

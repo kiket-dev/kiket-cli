@@ -27,33 +27,33 @@ RSpec.describe Kiket::Client do
     it "raises UnauthorizedError on 401" do
       stub_api_request(:get, "/api/v1/test", status: 401, response: { error: "Unauthorized" })
 
-      expect {
+      expect do
         client.get("/api/v1/test")
-      }.to raise_error(Kiket::UnauthorizedError, /Unauthorized/)
+      end.to raise_error(Kiket::UnauthorizedError, /Unauthorized/)
     end
 
     it "raises NotFoundError on 404" do
       stub_api_request(:get, "/api/v1/test", status: 404, response: { error: "Not found" })
 
-      expect {
+      expect do
         client.get("/api/v1/test")
-      }.to raise_error(Kiket::NotFoundError, /not found/)
+      end.to raise_error(Kiket::NotFoundError, /not found/)
     end
 
     it "raises RateLimitError on 429" do
       stub_api_request(:get, "/api/v1/test", status: 429, response: { error: "Rate limited" })
 
-      expect {
+      expect do
         client.get("/api/v1/test")
-      }.to raise_error(Kiket::RateLimitError, /Rate limit/)
+      end.to raise_error(Kiket::RateLimitError, /Rate limit/)
     end
 
     it "raises ServerError on 500" do
       stub_api_request(:get, "/api/v1/test", status: 500, response: { error: "Server error" })
 
-      expect {
+      expect do
         client.get("/api/v1/test")
-      }.to raise_error(Kiket::ServerError, /Server error/)
+      end.to raise_error(Kiket::ServerError, /Server error/)
     end
   end
 

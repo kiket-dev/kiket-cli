@@ -22,6 +22,7 @@ Metrics/BlockLength:
   Exclude:
     - 'spec/**/*'
     - 'lib/kiket/commands/**/*'
+    - '*.gemspec'
 
 Metrics/MethodLength:
   Max: 30
@@ -30,9 +31,29 @@ Metrics/MethodLength:
 
 Metrics/ClassLength:
   Max: 300
+  Exclude:
+    - 'lib/kiket/commands/**/*'
 
 Metrics/ModuleLength:
   Max: 300
+
+Metrics/AbcSize:
+  Max: 50
+  Exclude:
+    - 'lib/kiket/commands/**/*'
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+  Exclude:
+    - 'lib/kiket/commands/**/*'
+
+Metrics/PerceivedComplexity:
+  Max: 10
+  Exclude:
+    - 'lib/kiket/commands/**/*'
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
 
 Style/Documentation:
   Enabled: false
@@ -41,10 +62,19 @@ Style/FrozenStringLiteralComment:
   EnforcedStyle: always
 
 RSpec/ExampleLength:
-  Max: 20
+  Max: 40
 
 RSpec/MultipleExpectations:
-  Max: 5
+  Max: 10
 
 RSpec/NestedGroups:
   Max: 5
+
+RSpec/AnyInstance:
+  Enabled: false
+
+RSpec/MessageSpies:
+  Enabled: false
+
+RSpec/StubbedMock:
+  Enabled: false

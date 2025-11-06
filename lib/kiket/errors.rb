@@ -5,6 +5,7 @@ module Kiket
 
   class ConfigurationError < Error; end
   class AuthenticationError < Error; end
+
   class APIError < Error
     attr_reader :status, :response_body
 
@@ -14,6 +15,7 @@ module Kiket
       @response_body = response_body
     end
   end
+
   class ValidationError < Error; end
   class NotFoundError < APIError; end
   class UnauthorizedError < APIError; end

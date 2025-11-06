@@ -28,7 +28,7 @@ module Kiket
 
         spinner.success("Secrets initialized")
         success "Secret store created for #{org}"
-        info "Secrets: #{response['secret_count']} initialized" if response["secret_count"]
+        info "Secrets: #{response["secret_count"]} initialized" if response["secret_count"]
       rescue StandardError => e
         handle_error(e)
       end
@@ -157,7 +157,7 @@ module Kiket
           file.puts ""
 
           response["secrets"].each do |secret|
-            file.puts "#{secret['key']}=#{secret['value']}"
+            file.puts "#{secret["key"]}=#{secret["value"]}"
           end
         end
 
@@ -225,9 +225,7 @@ module Kiket
           exit 1
         end
 
-        unless options[:force]
-          return unless prompt.yes?("Delete secret '#{key}'?")
-        end
+        return if !options[:force] && !prompt.yes?("Delete secret '#{key}'?")
 
         scope = {
           organization: org,

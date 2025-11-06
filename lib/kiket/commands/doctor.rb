@@ -32,19 +32,13 @@ module Kiket
         checks << check_organization_access(org)
 
         # Product installation health
-        if options[:product]
-          checks << check_product_installation(options[:product])
-        end
+        checks << check_product_installation(options[:product]) if options[:product]
 
         # Extension health
-        if options[:extensions] || options[:product]
-          checks.concat(check_extensions(org, options[:product]))
-        end
+        checks.concat(check_extensions(org, options[:product])) if options[:extensions] || options[:product]
 
         # Workflow health
-        if options[:workflows]
-          checks.concat(check_workflows(org))
-        end
+        checks.concat(check_workflows(org)) if options[:workflows]
 
         # Secret health
         checks.concat(check_secrets(org, options[:product]))
@@ -72,58 +66,50 @@ module Kiket
       private
 
       def check_api_connectivity
-        begin
-          client.get("/api/v1/health")
-          { category: "API", name: "Connectivity", status: :ok, message: "API reachable" }
-        rescue StandardError => e
-          { category: "API", name: "Connectivity", status: :error, message: "Cannot reach API: #{e.message}" }
-        end
+        client.get("/api/v1/health")
+        { category: "API", name: "Connectivity", status: :ok, message: "API reachable" }
+      rescue StandardError => e
+        { category: "API", name: "Connectivity", status: :error, message: "Cannot reach API: #{e.message}" }
       end
 
       def check_authentication
-        begin
-          response = client.get("/api/v1/me")
-          { category: "Auth", name: "Token", status: :ok, message: "Valid (#{response['email']})" }
-        rescue UnauthorizedError
-          { category: "Auth", name: "Token", status: :error, message: "Invalid or expired" }
-        rescue StandardError => e
-          { category: "Auth", name: "Token", status: :error, message: e.message }
-        end
+        response = client.get("/api/v1/me")
+        { category: "Auth", name: "Token", status: :ok, message: "Valid (#{response["email"]})" }
+      rescue UnauthorizedError
+        { category: "Auth", name: "Token", status: :error, message: "Invalid or expired" }
+      rescue StandardError => e
+        { category: "Auth", name: "Token", status: :error, message: e.message }
       end
 
       def check_organization_access(org)
-        begin
-          response = client.get("/api/v1/organizations/#{org}")
-          { category: "Org", name: "Access", status: :ok, message: response["name"] }
-        rescue NotFoundError
-          { category: "Org", name: "Access", status: :error, message: "Organization not found" }
-        rescue ForbiddenError
-          { category: "Org", name: "Access", status: :error, message: "Access denied" }
-        rescue StandardError => e
-          { category: "Org", name: "Access", status: :error, message: e.message }
-        end
+        response = client.get("/api/v1/organizations/#{org}")
+        { category: "Org", name: "Access", status: :ok, message: response["name"] }
+      rescue NotFoundError
+        { category: "Org", name: "Access", status: :error, message: "Organization not found" }
+      rescue ForbiddenError
+        { category: "Org", name: "Access", status: :error, message: "Access denied" }
+      rescue StandardError => e
+        { category: "Org", name: "Access", status: :error, message: e.message }
       end
 
       def check_product_installation(installation_id)
-        begin
-          response = client.get("/api/v1/marketplace/installations/#{installation_id}")
-          installation = response["installation"]
+        response = client.get("/api/v1/marketplace/installations/#{installation_id}")
+        installation = response["installation"]
 
-          status = case installation["status"]
-                   when "active" then :ok
-                   when "installing", "upgrading" then :warning
-                   else :error
-                   end
+        status = case installation["status"]
+                 when "active" then :ok
+                 when "installing", "upgrading" then :warning
+                 else :error
+                 end
 
-          {
-            category: "Product",
-            name: installation["product_name"],
-            status: status,
-            message: installation["status"]
-          }
-        rescue StandardError => e
-          { category: "Product", name: "Installation", status: :error, message: e.message }
-        end
+        {
+          category: "Product",
+          name: installation["product_name"],
+          status: status,
+          message: installation["status"]
+        }
+      rescue StandardError => e
+        { category: "Product", name: "Installation", status: :error, message: e.message }
       end
 
       def check_extensions(org, product_id = nil)
@@ -147,7 +133,7 @@ module Kiket
               category: "Extensions",
               name: "Count",
               status: :ok,
-              message: "#{response['extensions'].size} extensions"
+              message: "#{response["extensions"].size} extensions"
             }
 
             # Check health of each extension
@@ -197,19 +183,19 @@ module Kiket
               category: "Workflows",
               name: "Count",
               status: :ok,
-              message: "#{response['workflows'].size} workflows"
+              message: "#{response["workflows"].size} workflows"
             }
 
             # Check for validation errors
             response["workflows"].each do |workflow|
-              if workflow["validation_errors"]&.any?
-                checks << {
-                  category: "Workflows",
-                  name: workflow["name"],
-                  status: :error,
-                  message: "Validation errors"
-                }
-              end
+              next unless workflow["validation_errors"]&.any?
+
+              checks << {
+                category: "Workflows",
+                name: workflow["name"],
+                status: :error,
+                message: "Validation errors"
+              }
             end
           end
         rescue StandardError => e
@@ -237,7 +223,7 @@ module Kiket
             category: "Secrets",
             name: "Count",
             status: :ok,
-            message: "#{response['secret_count']} secrets"
+            message: "#{response["secret_count"]} secrets"
           }
 
           # Check for expiring secrets
@@ -246,7 +232,7 @@ module Kiket
               category: "Secrets",
               name: "Expiration",
               status: :warning,
-              message: "#{response['expiring_soon'].size} secrets expiring soon"
+              message: "#{response["expiring_soon"].size} secrets expiring soon"
             }
           end
 
@@ -256,7 +242,7 @@ module Kiket
               category: "Secrets",
               name: "Validity",
               status: :error,
-              message: "#{response['invalid'].size} invalid secrets"
+              message: "#{response["invalid"].size} invalid secrets"
             }
           end
         rescue StandardError => e

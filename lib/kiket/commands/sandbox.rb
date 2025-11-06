@@ -20,25 +20,25 @@ module Kiket
         spinner.auto_spin
 
         response = client.post("/api/v1/sandbox/launch",
-                                body: {
-                                  product_id: product_id,
-                                  expires_in: options[:expires_in],
-                                  include_demo_data: options[:demo_data]
-                                })
+                               body: {
+                                 product_id: product_id,
+                                 expires_in: options[:expires_in],
+                                 include_demo_data: options[:demo_data]
+                               })
 
         spinner.success("Sandbox created")
 
         sandbox = response["sandbox"]
 
         success "Sandbox environment created"
-        info "Sandbox ID: #{sandbox['id']}"
-        info "Organization: #{sandbox['organization_slug']}"
-        info "URL: #{sandbox['url']}"
-        info "Expires: #{sandbox['expires_at']}"
+        info "Sandbox ID: #{sandbox["id"]}"
+        info "Organization: #{sandbox["organization_slug"]}"
+        info "URL: #{sandbox["url"]}"
+        info "Expires: #{sandbox["expires_at"]}"
         puts ""
         info "Login credentials:"
-        puts "  Email: #{sandbox['admin_email']}"
-        puts "  Password: #{sandbox['admin_password']}"
+        puts "  Email: #{sandbox["admin_email"]}"
+        puts "  Password: #{sandbox["admin_password"]}"
         puts ""
         warning "Save these credentials - they won't be shown again"
       rescue StandardError => e
@@ -55,8 +55,8 @@ module Kiket
 
         puts pastel.bold("Teardown Sandbox")
         puts "ID: #{sandbox_id}"
-        puts "Product: #{sandbox['product_name']}"
-        puts "Organization: #{sandbox['organization_slug']}"
+        puts "Product: #{sandbox["product_name"]}"
+        puts "Organization: #{sandbox["organization_slug"]}"
         puts ""
 
         unless options[:force]
@@ -87,7 +87,7 @@ module Kiket
         spinner.success("Data refreshed")
 
         success "Sandbox data refreshed"
-        info "Records refreshed: #{response['refreshed_count']}"
+        info "Records refreshed: #{response["refreshed_count"]}"
       rescue StandardError => e
         handle_error(e)
       end
@@ -122,12 +122,12 @@ module Kiket
         spinner.auto_spin
 
         response = client.post("/api/v1/sandbox/#{sandbox_id}/extend",
-                                body: { duration: options[:duration] })
+                               body: { duration: options[:duration] })
 
         spinner.success("Expiration extended")
 
         success "Sandbox expiration extended"
-        info "New expiration: #{response['expires_at']}"
+        info "New expiration: #{response["expires_at"]}"
       rescue StandardError => e
         handle_error(e)
       end

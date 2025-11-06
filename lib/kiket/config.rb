@@ -12,8 +12,8 @@ module Kiket
 
     def initialize(attributes = {})
       @api_base_url = attributes[:api_base_url] || ENV["KIKET_API_URL"] || "https://kiket.dev"
-      @api_token = attributes[:api_token] || ENV["KIKET_API_TOKEN"]
-      @default_org = attributes[:default_org] || ENV["KIKET_DEFAULT_ORG"]
+      @api_token = attributes[:api_token] || ENV.fetch("KIKET_API_TOKEN", nil)
+      @default_org = attributes[:default_org] || ENV.fetch("KIKET_DEFAULT_ORG", nil)
       @output_format = attributes[:output_format] || "human"
       @verbose = attributes[:verbose] || false
     end

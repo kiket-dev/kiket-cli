@@ -69,15 +69,19 @@ module Kiket
       when 200..299
         response.body
       when 401
-        raise UnauthorizedError.new("Unauthorized. Please run 'kiket auth login'", status: response.status, response_body: response.body)
+        raise UnauthorizedError.new("Unauthorized. Please run 'kiket auth login'", status: response.status,
+                                                                                   response_body: response.body)
       when 403
-        raise ForbiddenError.new("Forbidden. You don't have permission to access this resource", status: response.status, response_body: response.body)
+        raise ForbiddenError.new("Forbidden. You don't have permission to access this resource",
+                                 status: response.status, response_body: response.body)
       when 404
         raise NotFoundError.new("Resource not found", status: response.status, response_body: response.body)
       when 429
-        raise RateLimitError.new("Rate limit exceeded. Please try again later", status: response.status, response_body: response.body)
+        raise RateLimitError.new("Rate limit exceeded. Please try again later", status: response.status,
+                                                                                response_body: response.body)
       when 500..599
-        raise ServerError.new("Server error. Please try again later", status: response.status, response_body: response.body)
+        raise ServerError.new("Server error. Please try again later", status: response.status,
+                                                                      response_body: response.body)
       else
         error_message = response.body.is_a?(Hash) ? response.body["error"] || response.body["message"] : "Unknown error"
         raise APIError.new(error_message, status: response.status, response_body: response.body)

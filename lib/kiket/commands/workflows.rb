@@ -25,7 +25,7 @@ module Kiket
 
           begin
             content = File.read(file)
-            workflow = YAML.load(content)
+            workflow = YAML.safe_load(content)
 
             # Validate structure
             unless workflow.is_a?(Hash)
@@ -49,10 +49,10 @@ module Kiket
                 end
 
                 # Validate transitions
-                if state_def["transitions"]
-                  state_def["transitions"].each do |transition|
-                    errors << "#{file}: Transition missing 'to' field in state '#{state_name}'" unless transition["to"]
-                  end
+                next unless state_def["transitions"]
+
+                state_def["transitions"].each do |transition|
+                  errors << "#{file}: Transition missing 'to' field in state '#{state_name}'" unless transition["to"]
                 end
               end
             end
@@ -122,21 +122,21 @@ module Kiket
             test_payload = if options[:scenario]
                              YAML.load_file(options[:scenario])
                            else
-                             generate_test_payload(YAML.load(workflow_content))
+                             generate_test_payload(YAML.safe_load(workflow_content))
                            end
 
             # Send to API for validation
             response = client.post("/api/v1/workflows/validate",
-                                    body: {
-                                      workflow: workflow_content,
-                                      test_payload: test_payload
-                                    })
+                                   body: {
+                                     workflow: workflow_content,
+                                     test_payload: test_payload
+                                   })
 
             if response["valid"]
               spinner.success
             else
               spinner.error
-              error "#{file}: #{response['errors'].join(', ')}"
+              error "#{file}: #{response["errors"].join(", ")}"
             end
           rescue StandardError => e
             spinner.error
@@ -171,31 +171,31 @@ module Kiket
         spinner.auto_spin
 
         response = client.post("/api/v1/workflows/simulate",
-                                body: {
-                                  workflow: workflow_content,
-                                  payload: input_payload
-                                })
+                               body: {
+                                 workflow: workflow_content,
+                                 payload: input_payload
+                               })
 
         spinner.success("Simulation complete")
 
-        puts "\n#{pastel.bold('Execution Path:')}"
+        puts "\n#{pastel.bold("Execution Path:")}"
         response["execution"]["states_visited"].each_with_index do |state, idx|
           puts "  #{idx + 1}. #{state}"
         end
 
-        puts "\n#{pastel.bold('Actions Executed:')}"
+        puts "\n#{pastel.bold("Actions Executed:")}"
         response["execution"]["actions"].each do |action|
-          puts "  • #{action['type']}: #{action['description']}"
+          puts "  • #{action["type"]}: #{action["description"]}"
         end
 
         if response["execution"]["errors"]&.any?
-          puts "\n#{pastel.bold('Errors:')}"
+          puts "\n#{pastel.bold("Errors:")}"
           response["execution"]["errors"].each do |error|
-            puts "  #{pastel.red('✗')} #{error}"
+            puts "  #{pastel.red("✗")} #{error}"
           end
         end
 
-        puts "\n#{pastel.bold('Final State:')} #{response['execution']['final_state']}"
+        puts "\n#{pastel.bold("Final State:")} #{response["execution"]["final_state"]}"
       rescue JSON::ParserError => e
         error "Invalid JSON in input file: #{e.message}"
         exit 1
@@ -220,10 +220,10 @@ module Kiket
         spinner.auto_spin
 
         response = client.post("/api/v1/workflows/visualize",
-                                body: {
-                                  workflow: workflow_content,
-                                  format: options[:format]
-                                })
+                               body: {
+                                 workflow: workflow_content,
+                                 format: options[:format]
+                               })
 
         spinner.success("Visualization generated")
 
@@ -271,13 +271,13 @@ module Kiket
 
         spinner.success("Found #{changed_files.size} changed files")
 
-        puts "\n#{pastel.bold('Changed Workflows:')}"
+        puts "\n#{pastel.bold("Changed Workflows:")}"
         changed_files.each do |file|
           # Get diff stats
           cmd = "git -C #{path} diff #{options[:against]} --stat -- #{file}"
           stats, = Open3.capture2(cmd)
 
-          puts "  #{pastel.yellow('~')} #{file}"
+          puts "  #{pastel.yellow("~")} #{file}"
           puts "    #{stats.strip}" if verbose?
         end
       rescue StandardError => e
