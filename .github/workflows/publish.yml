@@ -1,0 +1,74 @@
+name: Publish Gem
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.2'
+        bundler-cache: true
+
+    - name: Install dependencies
+      run: bundle install
+
+    - name: Run tests
+      run: bundle exec rspec
+
+    - name: Run RuboCop
+      run: bundle exec rubocop
+
+    - name: Extract version from tag
+      id: tag_version
+      run: |
+        TAG=${GITHUB_REF#refs/tags/v}
+        echo "version=$TAG" >> $GITHUB_OUTPUT
+        echo "Publishing version $TAG"
+
+    - name: Verify version matches
+      run: |
+        GEM_VERSION=$(ruby -r ./lib/kiket/version.rb -e "puts Kiket::VERSION")
+        TAG_VERSION=${{ steps.tag_version.outputs.version }}
+        if [ "$GEM_VERSION" != "$TAG_VERSION" ]; then
+          echo "Error: Gem version ($GEM_VERSION) doesn't match tag version ($TAG_VERSION)"
+          exit 1
+        fi
+        echo "Version verified: $GEM_VERSION"
+
+    - name: Build gem
+      run: gem build kiket-cli.gemspec
+
+    - name: Configure GitHub Packages
+      run: |
+        mkdir -p ~/.gem
+        cat > ~/.gem/credentials << EOF
+        ---
+        :github: Bearer ${{ secrets.GITHUB_TOKEN }}
+        EOF
+        chmod 0600 ~/.gem/credentials
+
+    - name: Publish to GitHub Packages
+      run: |
+        gem push --key github \
+          --host https://rubygems.pkg.github.com/kiket \
+          kiket-cli-${{ steps.tag_version.outputs.version }}.gem
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: kiket-cli-${{ steps.tag_version.outputs.version }}.gem
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

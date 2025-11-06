@@ -4,15 +4,33 @@ Official command-line interface for the Kiket workflow automation platform.
 
 ## Installation
 
+### From RubyGems (Coming Soon)
+
 ```bash
 gem install kiket-cli
 ```
 
-Or install from source:
+### From GitHub Packages
+
+```bash
+# Configure GitHub Packages as a gem source
+gem sources --add https://rubygems.pkg.github.com/kiket
+
+# Create ~/.gem/credentials with your GitHub token
+# (Only needed once)
+echo ":github: Bearer YOUR_GITHUB_TOKEN" >> ~/.gem/credentials
+chmod 0600 ~/.gem/credentials
+
+# Install the gem
+gem install kiket-cli --source https://rubygems.pkg.github.com/kiket
+```
+
+### From Source
 
 ```bash
 git clone https://github.com/kiket/cli.git
 cd cli
+bundle install
 rake install_local
 ```
 
@@ -66,8 +84,8 @@ kiket marketplace status [INSTALLATION]   # Show installation status
 kiket extensions scaffold NAME                  # Generate extension project
 kiket extensions lint [PATH]                    # Lint extension
 kiket extensions test [PATH]                    # Run tests
-kiket extensions package [PATH]                 # Package extension
-kiket extensions publish [PATH]                 # Publish to marketplace
+kiket extensions validate [PATH]                # Validate for publishing
+kiket extensions publish [PATH]                 # Publish to marketplace (GitHub)
 kiket extensions doctor [PATH]                  # Diagnose issues
 ```
 
@@ -167,6 +185,58 @@ bundle exec rspec
 bundle exec rubocop
 bundle exec rubocop -A  # Auto-fix
 ```
+
+### Building
+
+```bash
+# Build the gem
+gem build kiket-cli.gemspec
+
+# Install locally for testing
+gem install ./kiket-cli-*.gem
+```
+
+### Publishing
+
+The gem is automatically published to GitHub Packages when a new version tag is pushed:
+
+```bash
+# 1. Update version in lib/kiket/version.rb
+# 2. Update CHANGELOG.md
+# 3. Commit changes
+git add lib/kiket/version.rb CHANGELOG.md
+git commit -m "Bump version to 0.2.0"
+
+# 4. Create and push tag
+git tag v0.2.0
+git push origin main
+git push origin v0.2.0
+```
+
+The GitHub Actions workflow will:
+- Run tests and RuboCop
+- Build the gem
+- Publish to GitHub Packages
+- Create a GitHub Release
+
+### CI/CD
+
+Two GitHub Actions workflows are configured:
+
+**CI Workflow** (`.github/workflows/ci.yml`)
+- Runs on every push and pull request
+- Tests against Ruby 3.0, 3.1, 3.2, 3.3, 3.4
+- Runs RuboCop linter
+- Runs RSpec tests
+- Verifies gem builds successfully
+- Tests CLI installation
+
+**Publish Workflow** (`.github/workflows/publish.yml`)
+- Runs when a version tag is pushed (e.g., `v0.1.0`)
+- Verifies version matches tag
+- Runs full test suite
+- Publishes to GitHub Packages
+- Creates GitHub Release with gem artifact
 
 ### Console
 
