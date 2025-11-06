@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../lib/kiket"
+require_relative "../lib/kiket/cli"
+
+begin
+  Kiket::CLI.start(ARGV)
+rescue Interrupt
+  puts "\nInterrupted"
+  exit 130
+rescue Kiket::Error => e
+  warn "Error: #{e.message}"
+  exit 1
+rescue StandardError => e
+  warn "Unexpected error: #{e.message}"
+  warn e.backtrace.join("\n") if ENV["DEBUG"]
+  exit 1
+end
