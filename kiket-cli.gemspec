@@ -6,11 +6,11 @@ Gem::Specification.new do |spec|
   spec.name = "kiket-cli"
   spec.version = Kiket::VERSION
   spec.authors = ["Kiket Team"]
-  spec.email = ["team@kiket.ai"]
+  spec.email = ["team@kiket.dev"]
 
   spec.summary = "Official CLI for Kiket workflow automation platform"
   spec.description = "Command-line interface for managing Kiket marketplace products, extensions, workflows, and secrets"
-  spec.homepage = "https://kiket.ai"
+  spec.homepage = "https://kiket.dev"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 

@@ -69,7 +69,7 @@ module Kiket
       desc "reset", "Reset configuration to defaults"
       def reset
         if prompt.yes?("Reset all configuration? This will remove your API token.")
-          config.api_base_url = "https://app.kiket.ai"
+          config.api_base_url = "https://kiket.dev"
           config.api_token = nil
           config.default_org = nil
           config.output_format = "human"

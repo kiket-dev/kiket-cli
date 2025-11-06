@@ -9,6 +9,7 @@ module Kiket
       option :product, type: :string, desc: "Product installation ID"
       option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
       option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
+      option :group_by, type: :string, enum: %w[day], desc: "Grouping option (currently supports: day)"
       def usage
         ensure_authenticated!
         org = organization
@@ -20,8 +21,9 @@ module Kiket
 
         params = {
           organization: org,
-          start_date: options[:start_date],
-          end_date: options[:end_date]
+          start_at: options[:start_date],
+          end_at: options[:end_date],
+          group_by: options[:group_by]
         }
         params[:product_installation] = options[:product] if options[:product]
 
@@ -32,36 +34,61 @@ module Kiket
 
         spinner.success("Report generated")
 
+        totals = response.fetch("totals", {})
+        series = response.fetch("series", {})
+
         if output_format == "human"
           puts "\n#{pastel.bold('Usage Report')}"
           puts "Organization: #{org}"
-          puts "Period: #{response['period']['start']} to #{response['period']['end']}"
+          puts "Period: #{response['start_at']} → #{response['end_at']}"
           puts ""
 
-          puts pastel.bold("Summary:")
-          response["summary"].each do |metric, value|
-            puts "  #{metric}: #{format_metric(value)}"
+          if totals.empty?
+            puts pastel.yellow("No usage recorded in the selected window.")
+            return
           end
-          puts ""
 
-          if response["by_product"]
-            puts pastel.bold("By Product:")
-            response["by_product"].each do |product, metrics|
-              puts "  #{product}:"
-              metrics.each do |metric, value|
-                puts "    #{metric}: #{format_metric(value)}"
+          headers = %w[metric quantity unit estimated_cost]
+          rows = totals.map do |metric, data|
+            [
+              metric,
+              data["quantity"],
+              data["unit"] || response["unit"] || "count",
+              format_currency(data["estimated_cost_cents"])
+            ]
+          end
+
+          table = TTY::Table.new(headers, rows)
+          puts pastel.bold("Totals")
+          puts table.render(:unicode, padding: [0, 1])
+
+          unless series.empty?
+            puts "\n#{pastel.bold('Daily Breakdown')}"
+            series.each do |metric, timeline|
+              puts pastel.cyan("  #{metric}")
+              timeline.sort.each do |date, quantity|
+                puts "    #{date}: #{quantity}"
               end
             end
           end
         else
-          output_data(response["details"], headers: response["details"].first&.keys)
+          dataset = totals.map do |metric, data|
+            {
+              metric: metric,
+              quantity: data["quantity"],
+              unit: data["unit"] || response["unit"],
+              estimated_cost_cents: data["estimated_cost_cents"]
+            }
+          end
+          output_data(dataset, headers: %i[metric quantity unit estimated_cost_cents])
         end
       rescue StandardError => e
         handle_error(e)
       end
 
       desc "report billing", "Generate billing report"
-      option :month, type: :string, desc: "Month (YYYY-MM)"
+      option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
+      option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
       def billing
         ensure_authenticated!
         org = organization
@@ -73,7 +100,8 @@ module Kiket
 
         params = {
           organization: org,
-          month: options[:month] || Time.now.strftime("%Y-%m")
+          start_at: options[:start_date],
+          end_at: options[:end_date]
         }
 
         spinner = spinner("Generating billing report...")
@@ -86,23 +114,29 @@ module Kiket
         if output_format == "human"
           puts "\n#{pastel.bold('Billing Report')}"
           puts "Organization: #{org}"
-          puts "Month: #{params[:month]}"
+          puts "Period: #{response['start_at']} → #{response['end_at']}"
           puts ""
 
-          puts pastel.bold("Subscription:")
-          puts "  Plan: #{response['subscription']['plan']}"
-          puts "  Amount: #{format_currency(response['subscription']['amount'])}"
+          totals = response.fetch("totals", {})
+          puts pastel.bold("Totals:")
+          puts "  Invoiced: #{format_currency(totals['invoiced_cents'])}"
+          puts "  Paid: #{format_currency(totals['paid_cents'])}"
+          puts "  Outstanding: #{format_currency(totals['outstanding_cents'])}"
           puts ""
 
-          if response["usage_charges"]&.any?
-            puts pastel.bold("Usage Charges:")
-            response["usage_charges"].each do |charge|
-              puts "  #{charge['metric']}: #{format_currency(charge['amount'])} (#{charge['quantity']} units)"
+          invoices = response.fetch("invoices", [])
+          if invoices.empty?
+            puts pastel.yellow("No invoices issued in this period.")
+          else
+            puts pastel.bold("Invoices:")
+            invoices.each do |invoice|
+              puts "  #{invoice['stripe_invoice_id'] || invoice['id']}"
+              puts "    Status: #{invoice['status']}"
+              puts "    Amount: #{format_currency(invoice['amount_cents'])}"
+              puts "    Issued: #{invoice['issued_at']}"
+              puts "    Paid: #{invoice['paid_at'] || '—'}"
             end
-            puts ""
           end
-
-          puts pastel.bold("Total: #{format_currency(response['total'])}")
         else
           output_json(response)
         end
@@ -162,8 +196,9 @@ module Kiket
         end
       end
 
-      def format_currency(amount)
-        "$#{(amount / 100.0).round(2)}"
+      def format_currency(cents)
+        cents = cents.to_i
+        format("$%.2f", cents / 100.0)
       end
     end
   end

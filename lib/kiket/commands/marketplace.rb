@@ -228,7 +228,7 @@ module Kiket
           response = client.get("/api/v1/marketplace/installations/#{installation_id}")
           installation = response["installation"]
 
-          puts pastel.bold("Installation: #{installation['product_name']}")
+          puts pastel.bold("Installation: #{installation['product_name'] || installation['product_id']}")
           puts "ID: #{installation['id']}"
           puts "Status: #{format_status(installation['status'])}"
           puts "Version: #{installation['product_version']}"
@@ -241,7 +241,12 @@ module Kiket
               icon = status["ok"] ? pastel.green("✓") : pastel.red("✗")
               puts "  #{icon} #{check}: #{status['message']}"
             end
+            puts ""
           end
+
+          display_repositories(installation)
+          display_projects(installation)
+          display_extensions(installation)
         else
           # List all installations for org
           unless org
@@ -251,16 +256,21 @@ module Kiket
 
           response = client.get("/api/v1/marketplace/installations", params: { organization: org })
           installations = response["installations"].map do |inst|
+            issues = []
+            issues << "extensions" if Array(inst["missing_extensions"]).any?
+            missing_secret_map = inst["missing_extension_secrets"] || {}
+            issues << "secrets" if missing_secret_map.any?
             {
               id: inst["id"],
-              product: inst["product_name"],
+              product: inst["product_name"] || inst["product"],
               version: inst["product_version"],
               status: inst["status"],
-              installed: inst["installed_at"]
+              installed: inst["installed_at"],
+              issues: issues.join(", ")
             }
           end
 
-          output_data(installations, headers: %i[id product version status installed])
+          output_data(installations, headers: %i[id product version status installed issues])
         end
       rescue StandardError => e
         handle_error(e)
@@ -275,6 +285,103 @@ module Kiket
         when "failed", "deprecated" then pastel.red(status)
         else status
         end
+      end
+
+      def display_repositories(installation)
+        repos = Array(installation["repositories"])
+        return if repos.empty?
+
+        puts pastel.bold("Repositories:")
+        repos.each do |repo|
+          type = repo["type"] || "local"
+          label = "[#{type}]"
+          details = []
+          details << repo["path"] if repo["path"].present?
+          details << repo["url"] if repo["url"].present?
+          slug = repo["slug"]
+          details << "(#{slug})" if slug
+          puts "  • #{label} #{details.join(' ')}"
+        end
+        puts ""
+      end
+
+      def display_projects(installation)
+        projects = Array(installation["projects"])
+        return if projects.empty?
+
+        rows = projects.map do |project|
+          [
+            project["key"] || "-",
+            project["name"],
+            project["github_repo_url"] || "-"
+          ]
+        end
+
+        table = TTY::Table.new(%w[key name repository], rows)
+        puts pastel.bold("Projects:")
+        puts table.render(:unicode, padding: [0, 1])
+        puts ""
+      end
+
+      def display_extensions(installation)
+        extensions = Array(installation["extensions"])
+        return if extensions.empty?
+
+        puts pastel.bold("Extensions:")
+
+        extensions.each do |ext|
+          status_label = if ext["present"]
+            pastel.green("installed")
+          else
+            pastel.red("missing")
+          end
+
+          requirement = ext["required"] ? pastel.red("required") : pastel.dim("optional")
+          puts "  • #{ext['extension_id']} (#{ext['name']}) - #{status_label}, #{requirement}"
+
+          secrets = Array(ext["secrets"])
+          missing = Array(ext["missing_secrets"])
+          scaffolded = Array(ext["scaffolded_secrets"])
+
+          next if secrets.empty?
+
+          secrets.each do |secret|
+            key = secret["key"]
+            line = "      - #{key}"
+            line += " (#{secret['description']})" if secret["description"].present?
+            if missing.include?(key)
+              line += " #{pastel.yellow('[missing]')}"
+            else
+              line += " #{pastel.green('[configured]')}"
+            end
+            line += pastel.cyan(" [placeholder]") if scaffolded.include?(key)
+            puts line
+          end
+        end
+
+        missing_exts = Array(installation["missing_extensions"])
+        if missing_exts.any?
+          puts pastel.red("\nMissing extensions: #{missing_exts.join(', ')}")
+        end
+
+        missing_secret_map = installation["missing_extension_secrets"] || {}
+        if missing_secret_map.any?
+          puts pastel.yellow("\nSecrets pending configuration:")
+          missing_secret_map.each do |ext_id, keys|
+            puts "  #{ext_id}: #{keys.join(', ')}"
+          end
+          puts pastel.dim("Use `kiket secrets set <KEY> --extension <EXT>` to update values.")
+        end
+
+        scaffolded_map = installation["scaffolded_extension_secrets"] || {}
+        if scaffolded_map.any?
+          puts pastel.cyan("\nPlaceholder secrets created:")
+          scaffolded_map.each do |ext_id, keys|
+            puts "  #{ext_id}: #{keys.join(', ')}"
+          end
+        end
+
+        puts ""
       end
     end
   end

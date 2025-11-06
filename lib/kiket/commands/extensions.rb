@@ -160,9 +160,8 @@ module Kiket
         handle_error(e)
       end
 
-      desc "package [PATH]", "Package extension for distribution"
-      option :output, type: :string, desc: "Output path for package"
-      def package(path = ".")
+      desc "validate [PATH]", "Validate extension for publishing"
+      def validate(path = ".")
         ensure_authenticated!
 
         manifest_path = File.join(path, ".kiket", "manifest.yaml")
@@ -172,45 +171,52 @@ module Kiket
           exit 1
         end
 
-        require "yaml"
-        manifest = YAML.load_file(manifest_path)
-        extension_id = manifest.dig("extension", "id")
-        version = manifest.dig("extension", "version") || "1.0.0"
+        # Run lint
+        invoke :lint, [path]
 
-        output_file = options[:output] || "#{extension_id}-#{version}.tar.gz"
-
-        spinner = spinner("Packaging extension...")
-        spinner.auto_spin
-
-        # Create tarball
-        files_to_package = [
-          ".kiket/manifest.yaml",
-          "README.md",
-          "src/**/*",
-          "lib/**/*",
-          "handlers/**/*"
-        ]
-
-        require "open3"
-        cmd = "tar -czf #{output_file} -C #{path} #{files_to_package.join(' ')}"
-        stdout, stderr, status = Open3.capture3(cmd)
-
-        if status.success?
-          spinner.success("Package created")
-          success "Extension packaged: #{output_file}"
-          info "Size: #{File.size(output_file) / 1024} KB"
-        else
-          spinner.error("Packaging failed")
-          error stderr
+        # Check for git repository
+        unless Dir.exist?(File.join(path, ".git"))
+          error "Extension must be in a git repository"
+          info "Initialize with: git init"
           exit 1
         end
+
+        # Check for remote
+        require "open3"
+        stdout, stderr, status = Open3.capture3("git -C #{path} remote get-url origin")
+
+        unless status.success?
+          error "No git remote 'origin' configured"
+          info "Add remote with: git remote add origin https://github.com/username/repo.git"
+          exit 1
+        end
+
+        remote_url = stdout.strip
+
+        unless remote_url.match?(/github\.com/)
+          error "Remote must be a GitHub repository"
+          info "Current remote: #{remote_url}"
+          exit 1
+        end
+
+        # Check for uncommitted changes
+        stdout, = Open3.capture3("git -C #{path} status --porcelain")
+
+        if stdout.strip.length > 0
+          warning "Uncommitted changes detected"
+          info "Commit changes before publishing"
+        end
+
+        success "Extension validation passed"
+        info "Repository: #{remote_url}"
       rescue StandardError => e
         handle_error(e)
       end
 
-      desc "publish [PATH]", "Publish extension to marketplace"
+      desc "publish [PATH]", "Publish extension to marketplace via GitHub"
       option :registry, type: :string, default: "marketplace", desc: "Registry name"
       option :dry_run, type: :boolean, desc: "Validate without publishing"
+      option :ref, type: :string, desc: "Git ref (branch/tag) to publish (defaults to current branch)"
       def publish(path = ".")
         ensure_authenticated!
 
@@ -221,20 +227,36 @@ module Kiket
           exit 1
         end
 
-        # Run lint first
-        invoke :lint, [path]
+        # Validate extension
+        invoke :validate, [path]
 
         # Run tests
         info "Running tests before publish..."
         invoke :test, [path]
 
         require "yaml"
+        require "open3"
         manifest = YAML.load_file(manifest_path)
+
+        # Get git information
+        remote_url, = Open3.capture2("git -C #{path} remote get-url origin")
+        remote_url = remote_url.strip
+
+        current_branch, = Open3.capture2("git -C #{path} rev-parse --abbrev-ref HEAD")
+        current_branch = current_branch.strip
+
+        git_ref = options[:ref] || current_branch
+
+        commit_sha, = Open3.capture2("git -C #{path} rev-parse #{git_ref}")
+        commit_sha = commit_sha.strip[0..7]
 
         puts pastel.bold("\nPublish Extension:")
         puts "  ID: #{manifest.dig('extension', 'id')}"
         puts "  Name: #{manifest.dig('extension', 'name')}"
         puts "  Version: #{manifest.dig('extension', 'version')}"
+        puts "  Repository: #{remote_url}"
+        puts "  Ref: #{git_ref}"
+        puts "  Commit: #{commit_sha}"
         puts ""
 
         if options[:dry_run]
@@ -244,25 +266,25 @@ module Kiket
 
         return unless prompt.yes?("Publish to #{options[:registry]}?")
 
-        # Package first
-        invoke :package, [path], output: "/tmp/extension-package.tar.gz"
-
         spinner = spinner("Publishing extension...")
         spinner.auto_spin
 
-        # Upload package
-        File.open("/tmp/extension-package.tar.gz", "rb") do |file|
-          response = client.post("/api/v1/extensions/registry/#{options[:registry]}/publish",
-                                  body: {
-                                    manifest: manifest,
-                                    package: Base64.strict_encode64(file.read)
-                                  })
+        # Publish via GitHub repository reference
+        response = client.post("/api/v1/extensions/registry/#{options[:registry]}/publish",
+                                body: {
+                                  manifest: manifest,
+                                  repository: {
+                                    url: remote_url,
+                                    ref: git_ref,
+                                    commit_sha: commit_sha
+                                  }
+                                })
 
-          spinner.success("Published")
-          success "Extension published successfully"
-          info "Registry: #{options[:registry]}"
-          info "Version: #{response['version']}"
-        end
+        spinner.success("Published")
+        success "Extension published successfully"
+        info "Registry: #{options[:registry]}"
+        info "Version: #{response['version']}"
+        info "Extension ID: #{response['extension_id']}" if response["extension_id"]
       rescue StandardError => e
         handle_error(e)
       end

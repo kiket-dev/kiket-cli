@@ -40,7 +40,7 @@ end
 # Helper to create a test config
 def test_config(overrides = {})
   Kiket::Config.new({
-    api_base_url: "https://test.kiket.ai",
+    api_base_url: "https://test.kiket.dev",
     api_token: "test-token",
     default_org: "test-org",
     output_format: "json",
@@ -50,7 +50,7 @@ end
 
 # Helper to stub API requests
 def stub_api_request(method, path, response: {}, status: 200, headers: {})
-  stub_request(method, "https://test.kiket.ai#{path}")
+  stub_request(method, "https://test.kiket.dev#{path}")
     .to_return(
       status: status,
       body: response.to_json,

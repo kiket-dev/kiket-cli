@@ -118,7 +118,7 @@ module Kiket
         params = { organization: org }
         params[:product_installation] = options[:product] if options[:product]
 
-        response = client.get("/api/v1/secrets", params: params)
+        response = client.get("/api/v1/secrets", params: params.merge(include_values: true))
 
         secrets = response["secrets"].map do |secret|
           {

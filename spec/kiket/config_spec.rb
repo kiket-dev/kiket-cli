@@ -6,31 +6,31 @@ RSpec.describe Kiket::Config do
   describe "#initialize" do
     it "sets default values" do
       config = described_class.new
-      expect(config.api_base_url).to eq("https://app.kiket.ai")
+      expect(config.api_base_url).to eq("https://kiket.dev")
       expect(config.output_format).to eq("human")
       expect(config.verbose).to be false
     end
 
     it "accepts override values" do
       config = described_class.new(
-        api_base_url: "https://custom.kiket.ai",
+        api_base_url: "https://custom.kiket.dev",
         api_token: "custom-token",
         verbose: true
       )
 
-      expect(config.api_base_url).to eq("https://custom.kiket.ai")
+      expect(config.api_base_url).to eq("https://custom.kiket.dev")
       expect(config.api_token).to eq("custom-token")
       expect(config.verbose).to be true
     end
 
     it "uses environment variables when available" do
-      allow(ENV).to receive(:[]).with("KIKET_API_URL").and_return("https://env.kiket.ai")
+      allow(ENV).to receive(:[]).with("KIKET_API_URL").and_return("https://env.kiket.dev")
       allow(ENV).to receive(:[]).with("KIKET_API_TOKEN").and_return("env-token")
       allow(ENV).to receive(:[]).with("KIKET_DEFAULT_ORG").and_return("env-org")
 
       config = described_class.new
 
-      expect(config.api_base_url).to eq("https://env.kiket.ai")
+      expect(config.api_base_url).to eq("https://env.kiket.dev")
       expect(config.api_token).to eq("env-token")
       expect(config.default_org).to eq("env-org")
     end
@@ -56,13 +56,13 @@ RSpec.describe Kiket::Config do
   describe "#to_h" do
     it "returns config as hash" do
       config = described_class.new(
-        api_base_url: "https://test.kiket.ai",
+        api_base_url: "https://test.kiket.dev",
         api_token: "test-token"
       )
 
       hash = config.to_h
 
-      expect(hash[:api_base_url]).to eq("https://test.kiket.ai")
+      expect(hash[:api_base_url]).to eq("https://test.kiket.dev")
       expect(hash[:api_token]).to eq("test-token")
       expect(hash[:output_format]).to eq("human")
     end

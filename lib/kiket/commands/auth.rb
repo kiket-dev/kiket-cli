@@ -9,7 +9,7 @@ module Kiket
       option :token, type: :string, desc: "API token (will prompt if not provided)"
       option :api_url, type: :string, desc: "API base URL"
       def login
-        api_url = options[:api_url] || config.api_base_url || prompt.ask("API URL:", default: "https://app.kiket.ai")
+        api_url = options[:api_url] || config.api_base_url || prompt.ask("API URL:", default: "https://kiket.dev")
         token = options[:token] || prompt.mask("API Token:")
 
         if token.nil? || token.empty?

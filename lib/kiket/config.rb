@@ -11,7 +11,7 @@ module Kiket
     attr_accessor :api_base_url, :api_token, :default_org, :output_format, :verbose
 
     def initialize(attributes = {})
-      @api_base_url = attributes[:api_base_url] || ENV["KIKET_API_URL"] || "https://app.kiket.ai"
+      @api_base_url = attributes[:api_base_url] || ENV["KIKET_API_URL"] || "https://kiket.dev"
       @api_token = attributes[:api_token] || ENV["KIKET_API_TOKEN"]
       @default_org = attributes[:default_org] || ENV["KIKET_DEFAULT_ORG"]
       @output_format = attributes[:output_format] || "human"

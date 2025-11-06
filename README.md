@@ -122,7 +122,7 @@ kiket doctor run --workflows          # Check workflows
 The CLI stores configuration in `~/.kiket/config`:
 
 ```yaml
-api_base_url: https://app.kiket.ai
+api_base_url: https://kiket.dev
 api_token: your-token-here
 default_org: your-org-slug
 output_format: human
@@ -132,7 +132,7 @@ verbose: false
 You can also use environment variables:
 
 ```bash
-export KIKET_API_URL=https://app.kiket.ai
+export KIKET_API_URL=https://kiket.dev
 export KIKET_API_TOKEN=your-token-here
 export KIKET_DEFAULT_ORG=your-org-slug
 ```
@@ -211,9 +211,9 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- Documentation: https://docs.kiket.ai
+- Documentation: https://docs.kiket.dev
 - Issues: https://github.com/kiket/cli/issues
-- Community: https://community.kiket.ai
+- Community: https://community.kiket.dev
 
 ## Changelog
 
