@@ -2,6 +2,8 @@
 
 require_relative "base"
 require "fileutils"
+require "zlib"
+require "rubygems/package"
 
 module Kiket
   module Commands
@@ -211,6 +213,38 @@ module Kiket
         info "Repository: #{remote_url}"
       rescue StandardError => e
         handle_error(e)
+      end
+
+      desc "package [PATH]", "Create a distributable tarball for an extension"
+      option :output, type: :string, desc: "Output directory (defaults to ./dist)"
+      def package(path = ".")
+        manifest_path = File.join(path, ".kiket", "manifest.yaml")
+        unless File.exist?(manifest_path)
+          error "No manifest.yaml found at #{manifest_path}"
+          exit 1
+        end
+
+        manifest = YAML.safe_load(File.read(manifest_path))
+        extension_id = manifest.dig("extension", "id") || manifest["extension_id"]
+        version = manifest.dig("extension", "version") || manifest["version"]
+
+        if extension_id.to_s.empty? || version.to_s.empty?
+          error "Manifest must include extension.id and version"
+          exit 1
+        end
+
+        slug = extension_id.tr(".", "-")
+        output_dir = options[:output] || File.join(path, "dist")
+        FileUtils.mkdir_p(output_dir)
+        archive_path = File.join(output_dir, "#{slug}-#{version}.tar.gz")
+
+        create_tarball(path, archive_path)
+
+        success "Package created"
+        info "Archive: #{archive_path}"
+      rescue Psych::SyntaxError => e
+        error "Invalid manifest: #{e.message}"
+        exit 1
       end
 
       desc "publish [PATH]", "Publish extension to marketplace via GitHub"
@@ -757,6 +791,34 @@ module Kiket
                   - run: pytest
                   - run: ruff check .
           YAML
+        end
+      end
+
+      def create_tarball(root, archive_path)
+        Dir.chdir(root) do
+          entries = Dir.glob("**/*", File::FNM_DOTMATCH).reject do |entry|
+            entry == "." ||
+              entry == ".." ||
+              entry.start_with?("dist/") ||
+              entry.start_with?(".git/")
+          end
+
+          File.open(archive_path, "wb") do |file|
+            Zlib::GzipWriter.wrap(file) do |gzip|
+              Gem::Package::TarWriter.new(gzip) do |tar|
+                entries.each do |entry|
+                  stat = File.stat(entry)
+                  if stat.directory?
+                    tar.mkdir(entry, stat.mode)
+                  else
+                    tar.add_file_simple(entry, stat.mode, stat.size) do |io|
+                      io.write(File.binread(entry))
+                    end
+                  end
+                end
+              end
+            end
+          end
         end
       end
     end

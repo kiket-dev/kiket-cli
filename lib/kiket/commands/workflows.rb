@@ -2,6 +2,8 @@
 
 require_relative "base"
 require "yaml"
+require "json"
+require "time"
 
 module Kiket
   module Commands
@@ -280,6 +282,59 @@ module Kiket
           puts "  #{pastel.yellow("~")} #{file}"
           puts "    #{stats.strip}" if verbose?
         end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "generate-schema [PATH]", "Produce a JSON schema summary for workflows"
+      option :output, type: :string, default: "workflow_schema.json", desc: "Output file"
+      def generate_schema(path = ".")
+        workflow_files = if File.directory?(path)
+          Dir.glob(File.join(path, "**/*.{yml,yaml}"))
+        else
+          [ path ]
+        end
+        workflow_files = workflow_files.select { |file| File.file?(file) }
+
+        if workflow_files.empty?
+          error "No workflow files found"
+          exit 1
+        end
+
+        schema = {
+          generated_at: Time.now.utc.iso8601,
+          workflows: []
+        }
+
+        workflow_files.each do |file|
+          data = YAML.safe_load(File.read(file)) rescue nil
+          next unless data.is_a?(Hash) && data["workflow"]
+
+          workflow = data["workflow"]
+          states = workflow["states"] || {}
+          transitions = states.flat_map do |state_name, state_def|
+            Array(state_def["transitions"]).filter_map do |transition|
+              next unless transition.is_a?(Hash)
+
+              {
+                "from" => state_name,
+                "to" => transition["to"],
+                "guard" => transition["guard"],
+                "action" => transition["action"]
+              }.compact
+            end
+          end
+
+          schema[:workflows] << {
+            "name" => workflow["name"] || File.basename(file, File.extname(file)),
+            "file" => file,
+            "states" => states.keys,
+            "transitions" => transitions
+          }
+        end
+
+        File.write(options[:output], JSON.pretty_generate(schema))
+        success "Schema written to #{options[:output]}"
       rescue StandardError => e
         handle_error(e)
       end

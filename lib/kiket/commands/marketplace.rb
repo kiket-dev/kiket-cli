@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require "yaml"
+require "json"
+require "fileutils"
 
 module Kiket
   module Commands
@@ -275,6 +278,136 @@ module Kiket
         handle_error(e)
       end
 
+      option :path, type: :string, desc: "Path to blueprint YAML (defaults to config/marketplace/blueprints/<id>.yml)"
+      option :fix, type: :boolean, desc: "Rewrite YAML with canonical formatting"
+      desc "validate IDENTIFIER", "Validate a marketplace blueprint definition"
+      def validate(identifier)
+        path = options[:path] || File.join("config", "marketplace", "blueprints", "#{identifier}.yml")
+        unless File.exist?(path)
+          error "Blueprint not found at #{path}"
+          exit 1
+        end
+
+        blueprint = YAML.safe_load(File.read(path), aliases: true) || {}
+        issues = validate_blueprint(identifier, blueprint)
+
+        if options[:fix]
+          File.write(path, YAML.dump(blueprint))
+          info "Blueprint normalized at #{path}"
+        end
+
+        if issues.empty?
+          success "Blueprint #{identifier} passed validation"
+        else
+          error "Blueprint #{identifier} has #{issues.size} issue(s):"
+          issues.each { |msg| puts "  • #{msg}" }
+          exit 1
+        end
+      rescue Psych::SyntaxError => e
+        error "Invalid YAML: #{e.message}"
+        exit 1
+      end
+
+      option :name, type: :string, desc: "Display name for the product"
+      option :version, type: :string, default: "0.1.0", desc: "Initial version"
+      option :description, type: :string, desc: "Short description"
+      option :force, type: :boolean, desc: "Overwrite existing blueprint"
+      desc "generate TYPE IDENTIFIER", "Generate marketplace assets (bundle)"
+      def generate(kind = nil, identifier = nil)
+        unless kind == "bundle"
+          error "Unknown generator '#{kind}'. Supported types: bundle"
+          exit 1
+        end
+
+        if identifier.to_s.empty?
+          error "Identifier required. Usage: kiket marketplace generate bundle <identifier>"
+          exit 1
+        end
+
+        name = options[:name] || prompt.ask("Product name:", default: identifier.split(/[-_]/).map(&:capitalize).join(" "))
+        description = options[:description] || prompt.ask("Description:", default: "Describe the value of #{name}")
+        version = options[:version]
+
+        blueprint_file = File.join("config", "marketplace", "blueprints", "#{identifier}.yml")
+        if File.exist?(blueprint_file) && !options[:force]
+          error "Blueprint already exists at #{blueprint_file} (use --force to overwrite)"
+          exit 1
+        end
+
+        FileUtils.mkdir_p(File.dirname(blueprint_file))
+        File.write(blueprint_file, default_blueprint_template(identifier, name, version, description))
+
+        definition_root = File.join("definitions", identifier)
+        FileUtils.mkdir_p(File.join(definition_root, "workflows"))
+        FileUtils.mkdir_p(File.join(definition_root, "analytics"))
+        FileUtils.mkdir_p(File.join(definition_root, "extensions"))
+        FileUtils.mkdir_p(File.join(definition_root, "docs"))
+        File.write(File.join(definition_root, "README.md"), "# #{name}\n\n#{description}\n")
+
+        success "Bundle skeleton created:"
+        info "  Blueprint: #{blueprint_file}"
+        info "  Definition root: #{definition_root}"
+      end
+
+      option :env_file, type: :string, desc: "Path to env file with KIKET_SECRET_* entries"
+      desc "secrets SUBCOMMAND INSTALLATION_ID", "Manage marketplace installation secrets (sync currently supported)"
+      def secrets(action = nil, installation_id = nil)
+        case action
+        when "sync"
+          sync_installation_secrets(installation_id)
+        else
+          error "Unknown secrets action '#{action}'. Supported: sync"
+          exit 1
+        end
+      end
+
+      option :expires_in, type: :string, default: "7d", desc: "Expiration (e.g., 7d, 24h)"
+      option :demo_data, type: :boolean, default: true, desc: "Seed demo data in sandbox org"
+      desc "launch-demo PRODUCT", "Provision a sandbox demo environment for a product"
+      def launch_demo(product_id)
+        ensure_authenticated!
+
+        spinner = spinner("Provisioning sandbox for #{product_id}...")
+        spinner.auto_spin
+
+        response = client.post("/api/v1/sandbox/launch",
+                               body: {
+                                 product_id: product_id,
+                                 expires_in: options[:expires_in],
+                                 include_demo_data: options[:demo_data]
+                               })
+
+        spinner.success("Sandbox ready")
+
+        sandbox = response["sandbox"]
+        success "Sandbox environment created"
+        info "Sandbox ID: #{sandbox["id"]}"
+        info "Organization: #{sandbox["organization_slug"]}"
+        info "URL: #{sandbox["url"]}"
+        info "Expires: #{sandbox["expires_at"]}"
+        puts ""
+        info "Login credentials:"
+        puts "  Email: #{sandbox["admin_email"]}"
+        puts "  Password: #{sandbox["admin_password"]}"
+        warning "\nSave these credentials - they will not be shown again."
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
+      option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
+      option :metrics, type: :string, desc: "Comma-separated metric list"
+      desc "telemetry SUBCOMMAND", "Marketplace telemetry utilities (report)"
+      def telemetry(action = nil)
+        case action
+        when "report"
+          telemetry_report
+        else
+          error "Unknown telemetry action '#{action}'. Supported: report"
+          exit 1
+        end
+      end
+
       private
 
       def handle_post_install(installation, env_file)
@@ -505,6 +638,165 @@ module Kiket
         end
 
         puts ""
+      end
+
+      def validate_blueprint(identifier, blueprint)
+        issues = []
+        required_keys = %w[identifier name version description metadata]
+        required_keys.each do |key|
+          issues << "Missing #{key}" if blueprint[key].to_s.strip.empty?
+        end
+
+        unless blueprint["identifier"].to_s == identifier.to_s
+          issues << "Identifier mismatch (expected #{identifier}, found #{blueprint['identifier']})"
+        end
+
+        metadata = blueprint["metadata"] || {}
+        issues << "metadata.pricing.model is required" if metadata.dig("pricing", "model").to_s.empty?
+
+        repositories = Array(metadata["repositories"] || blueprint["repositories"])
+        repositories.each do |repo|
+          next unless repo.is_a?(Hash)
+          next unless repo["type"].to_s == "local"
+
+          path = repo["path"]
+          issues << "Repository path missing for #{repo.inspect}" if path.to_s.empty?
+          issues << "Repository path #{path} not found" if path.present? && !File.exist?(path)
+        end
+
+        projects = Array(metadata["projects"] || blueprint["projects"])
+        projects.each do |project|
+          next unless project.is_a?(Hash)
+
+          issues << "Project key missing" if project["key"].to_s.empty?
+          issues << "Project definition_path missing for #{project['key']}" if project["definition_path"].to_s.empty?
+        end
+
+        extensions = Array(metadata["extensions"] || blueprint["extensions"])
+        extensions.each do |ext|
+          next unless ext.is_a?(Hash)
+
+          issues << "Extension missing extension_id" if ext["extension_id"].to_s.empty?
+          Array(ext["secrets"]).each do |secret|
+            next unless secret.is_a?(Hash)
+            issues << "Secret key missing for extension #{ext['extension_id']}" if secret["key"].to_s.empty?
+          end
+        end
+
+        issues
+      end
+
+      def default_blueprint_template(identifier, name, version, description)
+        template = {
+          "identifier" => identifier,
+          "version" => version,
+          "name" => name,
+          "description" => description,
+          "metadata" => {
+            "categories" => [ "custom" ],
+            "published" => false,
+            "pricing" => {
+              "model" => "custom",
+              "summary" => "Document pricing details here."
+            },
+            "repositories" => [
+              {
+                "type" => "local",
+                "path" => "definitions/#{identifier}",
+                "description" => "Primary definition repository"
+              }
+            ],
+            "projects" => [
+              {
+                "key" => identifier[0, 8].upcase,
+                "name" => "#{name} Project",
+                "definition_path" => "definitions/#{identifier}/.kiket",
+                "description" => "Primary project for #{name}",
+                "repository_url" => "https://github.com/example/#{identifier}"
+              }
+            ],
+            "extensions" => []
+          }
+        }
+        YAML.dump(template)
+      end
+
+      def sync_installation_secrets(installation_id)
+        ensure_authenticated!
+
+        if installation_id.to_s.empty?
+          error "Installation ID required. Usage: kiket marketplace secrets sync <installation_id>"
+          exit 1
+        end
+
+        response = client.get("/api/v1/marketplace/installations/#{installation_id}")
+        installation = response["installation"] || response
+
+        resolved = populate_extension_secrets(installation, options[:env_file])
+        refreshed = refresh_installation(installation_id)
+
+        if resolved.empty?
+          warning "No secrets updated. Ensure your env file or prompts provide values."
+        else
+          success "Updated #{resolved.size} secret(s):"
+          resolved.each do |entry|
+            puts "  #{entry[:extension_id]} → #{entry[:key]}"
+          end
+        end
+
+        outstanding = refreshed["missing_extension_secrets"] || {}
+        if outstanding.any?
+          warning "Secrets still missing:"
+          outstanding.each do |ext_id, keys|
+            puts "  #{ext_id}: #{keys.join(', ')}"
+          end
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      def telemetry_report
+        ensure_authenticated!
+        org = organization
+        unless org
+          error "Organization required (--org or config default)"
+          exit 1
+        end
+
+        params = {
+          organization: org,
+          start_at: options[:start_date],
+          end_at: options[:end_date],
+          metrics: options[:metrics]
+        }.compact
+
+        spinner = spinner("Fetching telemetry data...")
+        spinner.auto_spin
+        response = client.get("/api/v1/analytics/usage", params: params)
+        spinner.success("Telemetry data retrieved")
+
+        totals = response.fetch("totals", {})
+        if totals.empty?
+          warning "No telemetry recorded for the selected window."
+          return
+        end
+
+        dataset = totals.map do |metric, data|
+          {
+            metric: metric,
+            quantity: data["quantity"],
+            unit: data["unit"] || response["unit"] || "count",
+            estimated_cost_cents: data["estimated_cost_cents"]
+          }
+        end
+
+        puts pastel.bold("\nMarketplace Telemetry")
+        puts "Organization: #{org}"
+        puts "Window: #{response["start_at"]} → #{response["end_at"]}"
+        puts ""
+        output_data(dataset, headers: %i[metric quantity unit estimated_cost_cents])
+      rescue StandardError => e
+        handle_error(e)
       end
     end
   end
