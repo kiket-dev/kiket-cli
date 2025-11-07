@@ -5,7 +5,7 @@ require_relative "base"
 module Kiket
   module Commands
     class Analytics < Base
-      desc "report usage", "Generate usage report"
+      desc "usage", "Generate usage report"
       option :product, type: :string, desc: "Product installation ID"
       option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
       option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
@@ -86,7 +86,7 @@ module Kiket
         handle_error(e)
       end
 
-      desc "report billing", "Generate billing report"
+      desc "billing", "Generate billing report"
       option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
       option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
       def billing
@@ -144,7 +144,7 @@ module Kiket
         handle_error(e)
       end
 
-      desc "dashboard open", "Open analytics dashboard in browser"
+      desc "open", "Open analytics dashboard in browser"
       option :product, type: :string, desc: "Product installation ID"
       def open
         ensure_authenticated!

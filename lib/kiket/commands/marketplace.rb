@@ -126,7 +126,7 @@ module Kiket
         else
           spinner.success("Installation started")
           success "Installation ID: #{installation["id"]}"
-          info "Status: #{installation["status"]}"
+          puts pastel.dim("Status: #{installation["status"]}")
 
           handle_post_install(installation, options[:env_file])
         end
@@ -316,7 +316,7 @@ module Kiket
         extensions.each do |ext|
           next unless ext["present"]
           ext_id = ext["extension_id"]
-          required = ActiveModel::Type::Boolean.new.cast(ext["required"])
+          required = truthy?(ext["required"])
 
           secrets = Array(ext["secrets"])
           missing = Array(missing_secret_map[ext_id])
@@ -368,7 +368,7 @@ module Kiket
 
       def resolve_secret_value(key, env_values, required:, description: nil)
         value = env_values[key] || ENV[key]
-        return value if value.present?
+        return value if present?(value)
 
         if options[:non_interactive]
           warning "Secret #{key} missing in env/ENV; skipping." if required
@@ -376,7 +376,7 @@ module Kiket
         end
 
         prompt_text = "Enter value for #{key}"
-        prompt_text += " (#{description})" if description.present?
+        prompt_text += " (#{description})" if present?(description)
         prompt.mask("#{prompt_text}:")
       end
 
@@ -412,13 +412,22 @@ module Kiket
           type = repo["type"] || "local"
           label = "[#{type}]"
           details = []
-          details << repo["path"] if repo["path"].present?
-          details << repo["url"] if repo["url"].present?
+          details << repo["path"] if present?(repo["path"])
+          details << repo["url"] if present?(repo["url"])
           slug = repo["slug"]
           details << "(#{slug})" if slug
           puts "  • #{label} #{details.join(" ")}"
         end
         puts ""
+      end
+
+      def truthy?(value)
+        case value
+        when true then true
+        when false, nil then false
+        else
+          %w[true 1 yes y].include?(value.to_s.strip.downcase)
+        end
       end
 
       def display_projects(installation)
@@ -464,7 +473,7 @@ module Kiket
           secrets.each do |secret|
             key = secret["key"]
             line = "      - #{key}"
-            line += " (#{secret["description"]})" if secret["description"].present?
+            line += " (#{secret["description"]})" if present?(secret["description"])
             line += if missing.include?(key)
                       " #{pastel.yellow("[missing]")}"
                     else

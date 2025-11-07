@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "stringio"
+require "kiket/commands/analytics"
 
 RSpec.describe Kiket::Commands::Analytics do
   let(:config) { test_config(output_format: "human") }
@@ -12,7 +13,7 @@ RSpec.describe Kiket::Commands::Analytics do
     Kiket.reset!
     Kiket.instance_variable_set(:@config, config)
     allow(Kiket).to receive(:client).and_return(client)
-    allow_any_instance_of(described_class).to receive(:spinner).and_return(spinner_double)
+    allow(TTY::Spinner).to receive(:new).and_return(spinner_double)
   end
 
   after do
@@ -48,7 +49,7 @@ RSpec.describe Kiket::Commands::Analytics do
       ).and_return(response)
 
       output = capture_stdout do
-        described_class.start(%w[report usage --start-date 2025-11-01 --end-date 2025-11-02 --group-by day])
+        described_class.start(%w[usage --start-date 2025-11-01 --end-date 2025-11-02 --group-by day])
       end
 
       expect(output).to include("Usage Report")
@@ -90,7 +91,7 @@ RSpec.describe Kiket::Commands::Analytics do
       ).and_return(billing_response)
 
       output = capture_stdout do
-        described_class.start(%w[report billing --start-date 2025-11-01 --end-date 2025-11-30])
+        described_class.start(%w[billing --start-date 2025-11-01 --end-date 2025-11-30])
       end
 
       expect(output).to include("Billing Report")

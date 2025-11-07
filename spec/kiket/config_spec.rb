@@ -25,8 +25,8 @@ RSpec.describe Kiket::Config do
 
     it "uses environment variables when available" do
       allow(ENV).to receive(:[]).with("KIKET_API_URL").and_return("https://env.kiket.dev")
-      allow(ENV).to receive(:[]).with("KIKET_API_TOKEN").and_return("env-token")
-      allow(ENV).to receive(:[]).with("KIKET_DEFAULT_ORG").and_return("env-org")
+      allow(ENV).to receive(:fetch).with("KIKET_API_TOKEN", nil).and_return("env-token")
+      allow(ENV).to receive(:fetch).with("KIKET_DEFAULT_ORG", nil).and_return("env-org")
 
       config = described_class.new
 
