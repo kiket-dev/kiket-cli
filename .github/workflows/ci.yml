@@ -22,9 +22,6 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
 
-    - name: Install dependencies
-      run: bundle install
-
     - name: Run RuboCop
       run: bundle exec rubocop
 
@@ -46,9 +43,6 @@ jobs:
       with:
         ruby-version: '3.2'
         bundler-cache: true
-
-    - name: Install dependencies
-      run: bundle install
 
     - name: Build and install gem locally
       run: |
