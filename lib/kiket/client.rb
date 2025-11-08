@@ -16,20 +16,20 @@ module Kiket
       request(:get, path, params: params, headers: headers)
     end
 
-    def post(path, body: {}, headers: {})
-      request(:post, path, body: body, headers: headers)
+    def post(path, params: {}, body: {}, headers: {})
+      request(:post, path, params: params, body: body, headers: headers)
     end
 
-    def put(path, body: {}, headers: {})
-      request(:put, path, body: body, headers: headers)
+    def put(path, params: {}, body: {}, headers: {})
+      request(:put, path, params: params, body: body, headers: headers)
     end
 
-    def patch(path, body: {}, headers: {})
-      request(:patch, path, body: body, headers: headers)
+    def patch(path, params: {}, body: {}, headers: {})
+      request(:patch, path, params: params, body: body, headers: headers)
     end
 
-    def delete(path, headers: {})
-      request(:delete, path, headers: headers)
+    def delete(path, params: {}, headers: {})
+      request(:delete, path, params: params, headers: headers)
     end
 
     private

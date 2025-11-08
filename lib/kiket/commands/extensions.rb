@@ -8,6 +8,13 @@ require "rubygems/package"
 module Kiket
   module Commands
     class Extensions < Base
+      map(
+        "custom-data:list" => :custom_data_list,
+        "custom-data:get" => :custom_data_get,
+        "custom-data:create" => :custom_data_create,
+        "custom-data:update" => :custom_data_update,
+        "custom-data:delete" => :custom_data_delete
+      )
       desc "scaffold NAME", "Generate a new extension project"
       option :sdk, type: :string, default: "python", desc: "SDK language (python, typescript, ruby)"
       option :manifest, type: :boolean, desc: "Generate manifest only"
@@ -109,6 +116,10 @@ module Kiket
 
         # Check for README
         warnings << "No README.md found" unless File.exist?(File.join(path, "README.md"))
+
+        custom_data_results = validate_custom_data_assets(path, manifest)
+        errors.concat(custom_data_results[:errors])
+        warnings.concat(custom_data_results[:warnings])
 
         spinner.stop
 
@@ -407,6 +418,98 @@ module Kiket
           error "#{errors} error(s) and #{warnings} warning(s) found"
           exit 1
         end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "custom-data:list MODULE TABLE", "List custom data records via the extension API"
+      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :limit, type: :numeric, default: 50, desc: "Maximum number of records to fetch"
+      option :filters, type: :string, desc: "JSON filters (e.g. '{\"status\":\"open\"}')"
+      option :api_key, type: :string, desc: "Extension API key (defaults to KIKET_EXTENSION_API_KEY)"
+      def custom_data_list(module_key, table)
+        params = {
+          project_id: options[:project],
+          limit: options[:limit]
+        }
+        params[:filters] = parse_json_option(options[:filters], "--filters") if options[:filters]
+
+        response = client.get(
+          "/api/v1/ext/custom_data/#{module_key}/#{table}",
+          params: params,
+          headers: extension_api_headers
+        )
+
+        rows = response.fetch("data", [])
+        output_data(rows, headers: rows.first&.keys)
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "custom-data:get MODULE TABLE ID", "Fetch a single custom data record"
+      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :api_key, type: :string, desc: "Extension API key"
+      def custom_data_get(module_key, table, record_id)
+        response = client.get(
+          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: { project_id: options[:project] },
+          headers: extension_api_headers
+        )
+
+        row = response.fetch("data")
+        output_data([row], headers: row.keys)
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "custom-data:create MODULE TABLE", "Create a custom data record"
+      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :record, type: :string, required: true, desc: "JSON payload for the record"
+      option :api_key, type: :string, desc: "Extension API key"
+      def custom_data_create(module_key, table)
+        record = parse_json_option(options[:record], "--record")
+        response = client.post(
+          "/api/v1/ext/custom_data/#{module_key}/#{table}",
+          params: { project_id: options[:project] },
+          body: { record: record },
+          headers: extension_api_headers
+        )
+
+        row = response.fetch("data")
+        output_data([row], headers: row.keys)
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "custom-data:update MODULE TABLE ID", "Update a custom data record"
+      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :record, type: :string, required: true, desc: "JSON payload for updates"
+      option :api_key, type: :string, desc: "Extension API key"
+      def custom_data_update(module_key, table, record_id)
+        record = parse_json_option(options[:record], "--record")
+        response = client.patch(
+          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: { project_id: options[:project] },
+          body: { record: record },
+          headers: extension_api_headers
+        )
+
+        row = response.fetch("data")
+        output_data([row], headers: row.keys)
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "custom-data:delete MODULE TABLE ID", "Delete a custom data record"
+      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :api_key, type: :string, desc: "Extension API key"
+      def custom_data_delete(module_key, table, record_id)
+        client.delete(
+          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: { project_id: options[:project] },
+          headers: extension_api_headers
+        )
+        success "Deleted record #{record_id}"
       rescue StandardError => e
         handle_error(e)
       end
@@ -819,6 +922,79 @@ module Kiket
               end
             end
           end
+        end
+      end
+
+      no_commands do
+        def extension_api_headers
+          api_key = options[:api_key] || ENV["KIKET_EXTENSION_API_KEY"]
+          if api_key.nil? || api_key.empty?
+            error "Missing extension API key. Provide --api-key or set KIKET_EXTENSION_API_KEY."
+            exit 1
+          end
+
+          { "X-Kiket-API-Key" => api_key }
+        end
+
+        def parse_json_option(value, flag)
+          return {} if value.nil?
+
+          require "multi_json"
+          MultiJson.load(value)
+        rescue MultiJson::ParseError => e
+          error "#{flag} must be valid JSON: #{e.message}"
+          exit 1
+        end
+
+        def validate_custom_data_assets(path, manifest)
+          errors = []
+          warnings = []
+          modules_root = File.join(path, ".kiket", "modules")
+          return { errors: errors, warnings: warnings } unless Dir.exist?(modules_root)
+
+          module_files = Dir.glob(File.join(modules_root, "*", "schema.{yml,yaml}"))
+          local_modules = {}
+
+          module_files.each do |file|
+            data = YAML.safe_load(File.read(file))
+            module_id = data.dig("module", "id")
+            if module_id.nil?
+              errors << "#{relative_to_repo(file)} missing module.id"
+              next
+            end
+
+            tables = Array(data.dig("module", "tables"))
+            errors << "#{relative_to_repo(file)} must define at least one table" if tables.empty?
+            local_modules[module_id] = file
+          rescue Psych::SyntaxError => e
+            errors << "Invalid YAML in #{relative_to_repo(file)}: #{e.message}"
+          end
+
+          permissions = Array(manifest.dig("extension", "custom_data", "permissions"))
+          permissions.each do |entry|
+            module_id = entry["module"] || entry[:module]
+            next unless module_id
+
+            ops = Array(entry["operations"] || entry[:operations]).map(&:to_s)
+            invalid = ops.reject { |op| %w[read write admin].include?(op) }
+            errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(', ')}" if invalid.any?
+          end
+
+          missing_permissions = local_modules.keys.reject do |module_id|
+            permissions.any? { |entry| (entry["module"] || entry[:module]) == module_id }
+          end
+
+          missing_permissions.each do |module_id|
+            warnings << "Module #{module_id} is defined but not declared in extension.custom_data.permissions"
+          end
+
+          { errors: errors, warnings: warnings }
+        end
+
+        def relative_to_repo(path)
+          Pathname.new(path).relative_path_from(Pathname.new(Dir.pwd)).to_s
+        rescue ArgumentError
+          path
         end
       end
     end
