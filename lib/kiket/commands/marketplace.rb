@@ -288,7 +288,7 @@ module Kiket
           exit 1
         end
 
-        blueprint = YAML.safe_load(File.read(path), aliases: true) || {}
+        blueprint = YAML.safe_load_file(path, aliases: true) || {}
         issues = validate_blueprint(identifier, blueprint)
 
         if options[:fix]
@@ -324,7 +324,8 @@ module Kiket
           exit 1
         end
 
-        name = options[:name] || prompt.ask("Product name:", default: identifier.split(/[-_]/).map(&:capitalize).join(" "))
+        name = options[:name] || prompt.ask("Product name:",
+                                            default: identifier.split(/[-_]/).map(&:capitalize).join(" "))
         description = options[:description] || prompt.ask("Description:", default: "Describe the value of #{name}")
         version = options[:version]
 
@@ -431,7 +432,7 @@ module Kiket
 
         puts pastel.yellow("Remaining secrets to configure:")
         outstanding.each do |ext_id, keys|
-          puts "  #{ext_id}: #{keys.join(', ')}"
+          puts "  #{ext_id}: #{keys.join(", ")}"
         end
         puts pastel.dim("Use `kiket secrets set <KEY> --extension <EXT_ID>` or rerun the install with --env-file.")
       rescue StandardError => e
@@ -448,6 +449,7 @@ module Kiket
 
         extensions.each do |ext|
           next unless ext["present"]
+
           ext_id = ext["extension_id"]
           required = truthy?(ext["required"])
 
@@ -482,6 +484,7 @@ module Kiket
 
       def load_env_file(path)
         return {} if path.nil? || path.strip.empty?
+
         unless File.exist?(path)
           warning "Env file #{path} not found"
           return {}
@@ -490,17 +493,19 @@ module Kiket
         File.readlines(path).each_with_object({}) do |line, acc|
           line = line.strip
           next if line.empty? || line.start_with?("#")
+
           key, value = line.split("=", 2)
           next if key.nil? || value.nil?
+
           acc[key.strip] = value.strip
         end
-      rescue => e
+      rescue StandardError => e
         warning "Failed to read env file #{path}: #{e.message}"
         {}
       end
 
       def resolve_secret_value(key, env_values, required:, description: nil)
-        value = env_values[key] || ENV[key]
+        value = env_values[key] || ENV.fetch(key, nil)
         return value if present?(value)
 
         if options[:non_interactive]
@@ -517,7 +522,7 @@ module Kiket
         payload = { secret: { key: key, value: value } }
         client.post("/api/v1/extensions/#{extension_id}/secrets", body: payload)
       rescue Kiket::ValidationError, Kiket::APIError => e
-        if e.respond_to?(:status) && e.status == 422 || e.message&.match?(/already/i)
+        if (e.respond_to?(:status) && e.status == 422) || e.message&.match?(/already/i)
           client.patch(
             "/api/v1/extensions/#{extension_id}/secrets/#{key}",
             body: { secret: { value: value } }
@@ -648,7 +653,7 @@ module Kiket
         end
 
         unless blueprint["identifier"].to_s == identifier.to_s
-          issues << "Identifier mismatch (expected #{identifier}, found #{blueprint['identifier']})"
+          issues << "Identifier mismatch (expected #{identifier}, found #{blueprint["identifier"]})"
         end
 
         metadata = blueprint["metadata"] || {}
@@ -669,7 +674,7 @@ module Kiket
           next unless project.is_a?(Hash)
 
           issues << "Project key missing" if project["key"].to_s.empty?
-          issues << "Project definition_path missing for #{project['key']}" if project["definition_path"].to_s.empty?
+          issues << "Project definition_path missing for #{project["key"]}" if project["definition_path"].to_s.empty?
         end
 
         extensions = Array(metadata["extensions"] || blueprint["extensions"])
@@ -679,7 +684,8 @@ module Kiket
           issues << "Extension missing extension_id" if ext["extension_id"].to_s.empty?
           Array(ext["secrets"]).each do |secret|
             next unless secret.is_a?(Hash)
-            issues << "Secret key missing for extension #{ext['extension_id']}" if secret["key"].to_s.empty?
+
+            issues << "Secret key missing for extension #{ext["extension_id"]}" if secret["key"].to_s.empty?
           end
         end
 
@@ -693,7 +699,7 @@ module Kiket
           "name" => name,
           "description" => description,
           "metadata" => {
-            "categories" => [ "custom" ],
+            "categories" => ["custom"],
             "published" => false,
             "pricing" => {
               "model" => "custom",
@@ -748,7 +754,7 @@ module Kiket
         if outstanding.any?
           warning "Secrets still missing:"
           outstanding.each do |ext_id, keys|
-            puts "  #{ext_id}: #{keys.join(', ')}"
+            puts "  #{ext_id}: #{keys.join(", ")}"
           end
         end
       rescue StandardError => e

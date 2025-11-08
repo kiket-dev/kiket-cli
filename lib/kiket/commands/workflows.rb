@@ -290,10 +290,10 @@ module Kiket
       option :output, type: :string, default: "workflow_schema.json", desc: "Output file"
       def generate_schema(path = ".")
         workflow_files = if File.directory?(path)
-          Dir.glob(File.join(path, "**/*.{yml,yaml}"))
-        else
-          [ path ]
-        end
+                           Dir.glob(File.join(path, "**/*.{yml,yaml}"))
+                         else
+                           [path]
+                         end
         workflow_files = workflow_files.select { |file| File.file?(file) }
 
         if workflow_files.empty?
@@ -307,7 +307,11 @@ module Kiket
         }
 
         workflow_files.each do |file|
-          data = YAML.safe_load(File.read(file)) rescue nil
+          data = begin
+            YAML.safe_load_file(file)
+          rescue StandardError
+            nil
+          end
           next unless data.is_a?(Hash) && data["workflow"]
 
           workflow = data["workflow"]

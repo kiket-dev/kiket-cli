@@ -22,7 +22,8 @@ RSpec.describe Kiket::Commands::Marketplace do
 
   describe "#install" do
     it "uploads missing extension secrets from env file and refreshes installation" do
-      product = { "product" => { "id" => "blueprint-1", "name" => "Blueprint", "version" => "1.0.0", "description" => "Test blueprint", "pricing_model" => "team" } }
+      product = { "product" => { "id" => "blueprint-1", "name" => "Blueprint", "version" => "1.0.0",
+                                 "description" => "Test blueprint", "pricing_model" => "team" } }
       installation = {
         "installation" => {
           "id" => 123,
@@ -33,10 +34,10 @@ RSpec.describe Kiket::Commands::Marketplace do
               "name" => "Required Extension",
               "required" => true,
               "present" => true,
-              "secrets" => [ { "key" => "REQUIRED_TOKEN", "description" => "API token" } ]
+              "secrets" => [{ "key" => "REQUIRED_TOKEN", "description" => "API token" }]
             }
           ],
-          "missing_extension_secrets" => { "com.example.required" => [ "REQUIRED_TOKEN" ] },
+          "missing_extension_secrets" => { "com.example.required" => ["REQUIRED_TOKEN"] },
           "scaffolded_extension_secrets" => {}
         }
       }

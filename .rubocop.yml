@@ -1,8 +1,11 @@
+# Prevent inheritance from parent directory configs
+inherit_from: ~
+
 require:
   - rubocop-rspec
 
 AllCops:
-  TargetRubyVersion: 3.0
+  TargetRubyVersion: 3.2
   NewCops: enable
   Exclude:
     - 'vendor/**/*'
@@ -62,7 +65,7 @@ Style/FrozenStringLiteralComment:
   EnforcedStyle: always
 
 RSpec/ExampleLength:
-  Max: 40
+  Max: 60
 
 RSpec/MultipleExpectations:
   Max: 10
@@ -77,4 +80,16 @@ RSpec/MessageSpies:
   Enabled: false
 
 RSpec/StubbedMock:
+  Enabled: false
+
+RSpec/FilePath:
+  Enabled: false
+
+RSpec/SpecFilePathFormat:
+  Enabled: false
+
+Lint/DuplicateBranch:
+  Enabled: false
+
+Gemspec/RequiredRubyVersion:
   Enabled: false

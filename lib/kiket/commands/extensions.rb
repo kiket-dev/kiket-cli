@@ -235,7 +235,7 @@ module Kiket
           exit 1
         end
 
-        manifest = YAML.safe_load(File.read(manifest_path))
+        manifest = YAML.safe_load_file(manifest_path)
         extension_id = manifest.dig("extension", "id") || manifest["extension_id"]
         version = manifest.dig("extension", "version") || manifest["version"]
 
@@ -927,7 +927,7 @@ module Kiket
 
       no_commands do
         def extension_api_headers
-          api_key = options[:api_key] || ENV["KIKET_EXTENSION_API_KEY"]
+          api_key = options[:api_key] || ENV.fetch("KIKET_EXTENSION_API_KEY", nil)
           if api_key.nil? || api_key.empty?
             error "Missing extension API key. Provide --api-key or set KIKET_EXTENSION_API_KEY."
             exit 1
@@ -956,7 +956,7 @@ module Kiket
           local_modules = {}
 
           module_files.each do |file|
-            data = YAML.safe_load(File.read(file))
+            data = YAML.safe_load_file(file)
             module_id = data.dig("module", "id")
             if module_id.nil?
               errors << "#{relative_to_repo(file)} missing module.id"
@@ -977,7 +977,9 @@ module Kiket
 
             ops = Array(entry["operations"] || entry[:operations]).map(&:to_s)
             invalid = ops.reject { |op| %w[read write admin].include?(op) }
-            errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(', ')}" if invalid.any?
+            if invalid.any?
+              errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(", ")}"
+            end
           end
 
           missing_permissions = local_modules.keys.reject do |module_id|

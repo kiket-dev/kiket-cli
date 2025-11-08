@@ -35,9 +35,9 @@ RSpec.describe Kiket::Commands::Extensions do
     end
 
     it "requires API key" do
-      expect {
+      expect do
         described_class.start(%w[custom-data:list com.example records --project 42])
-      }.to raise_error(SystemExit)
+      end.to raise_error(SystemExit)
     end
   end
 
