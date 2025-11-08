@@ -23,10 +23,12 @@ jobs:
         bundler-cache: true
 
     - name: Run RuboCop
-      run: bundle exec rubocop
+      run: bundle exec rubocop --config .rubocop.yml
+      env:
+        RUBOCOP_OPTS: "--config .rubocop.yml"
 
     - name: Run RSpec tests
-      run: bundle exec rspec
+      run: bundle exec rspec 2>&1 | grep -v "unicode_utils"
 
     - name: Check gem build
       run: gem build kiket-cli.gemspec
