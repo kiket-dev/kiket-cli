@@ -4,21 +4,77 @@ require_relative "base"
 require "fileutils"
 require "zlib"
 require "rubygems/package"
+require "json"
+require "net/http"
+require "uri"
+require "openssl"
+require "securerandom"
 
 module Kiket
   module Commands
     class Extensions < Base
+      REPLAY_TEMPLATES = {
+        "before_transition" => {
+          "event" => "workflow.before_transition",
+          "event_type" => "before_transition",
+          "issue" => {
+            "id" => 42,
+            "status" => "in_progress",
+            "project_id" => 7,
+            "organization_id" => 3
+          },
+          "transition" => {
+            "from" => "in_progress",
+            "to" => "review",
+            "performed_by" => "alex@example.com"
+          }
+        },
+        "after_transition" => {
+          "event" => "workflow.after_transition",
+          "event_type" => "after_transition",
+          "issue" => {
+            "id" => 57,
+            "status" => "review",
+            "project_id" => 7,
+            "organization_id" => 3
+          },
+          "transition" => {
+            "from" => "in_progress",
+            "to" => "review",
+            "performed_by" => "casey@example.com"
+          }
+        },
+        "issue_created" => {
+          "event" => "issue.created",
+          "event_type" => "issue_created",
+          "issue" => {
+            "id" => 99,
+            "title" => "Customer onboarding",
+            "status" => "todo",
+            "project_id" => 11,
+            "organization_id" => 5
+          }
+        }
+      }.freeze
+
       map(
         "custom-data:list" => :custom_data_list,
         "custom-data:get" => :custom_data_get,
         "custom-data:create" => :custom_data_create,
         "custom-data:update" => :custom_data_update,
-        "custom-data:delete" => :custom_data_delete
+        "custom-data:delete" => :custom_data_delete,
+        "secrets:pull" => :extension_secrets_pull,
+        "secrets:push" => :extension_secrets_push
       )
       desc "scaffold NAME", "Generate a new extension project"
-      option :sdk, type: :string, default: "python", desc: "SDK language (python, typescript, ruby)"
+      option :sdk, type: :string, default: "python", desc: "SDK language (python, node, ruby)"
       option :manifest, type: :boolean, desc: "Generate manifest only"
       option :template, type: :string, desc: "Template type (webhook_guard, outbound_integration, notification_pack)"
+      option :extension_id, type: :string, desc: "Override extension ID in manifest"
+      option :ci, type: :boolean, default: true, desc: "Include GitHub Actions workflow"
+      option :tests, type: :boolean, default: true, desc: "Include example tests"
+      option :replay, type: :boolean, default: true, desc: "Generate replay samples"
+      option :force, type: :boolean, desc: "Overwrite existing directory"
       def scaffold(name)
         ensure_authenticated!
 
@@ -29,11 +85,21 @@ module Kiket
                                                               custom
                                                             ])
 
-        sdk = options[:sdk]
+        sdk = options[:sdk].to_s.downcase
+        sdk = "node" if sdk == "typescript"
         dir = File.join(Dir.pwd, name)
 
         if File.exist?(dir)
-          error "Directory #{name} already exists"
+          if options[:force]
+            FileUtils.rm_rf(dir)
+          else
+            error "Directory #{name} already exists (use --force to overwrite)"
+            exit 1
+          end
+        end
+
+        unless %w[python node ruby].include?(sdk)
+          error "Unsupported SDK '#{sdk}'. Supported values: python, node, ruby."
           exit 1
         end
 
@@ -43,13 +109,18 @@ module Kiket
         FileUtils.mkdir_p(dir)
 
         # Generate manifest
-        generate_manifest(dir, name, template_type)
+        generate_manifest(
+          dir,
+          name,
+          template_type,
+          extension_id: options[:extension_id]
+        )
 
         # Generate SDK-specific files
         case sdk
         when "python"
           generate_python_extension(dir, name, template_type)
-        when "typescript"
+        when "node"
           generate_typescript_extension(dir, name, template_type)
         when "ruby"
           generate_ruby_extension(dir, name, template_type)
@@ -58,8 +129,10 @@ module Kiket
         # Generate common files
         generate_readme(dir, name, sdk)
         generate_gitignore(dir)
-        generate_tests(dir, sdk, template_type)
-        generate_github_actions(dir, sdk)
+        generate_tests(dir, sdk, template_type, name) if options[:tests]
+        generate_github_actions(dir, sdk) if options[:ci]
+        generate_env_example(dir)
+        generate_replay_samples(dir, template_type) if options[:replay]
 
         spinner.success("Extension project created")
 
@@ -69,6 +142,24 @@ module Kiket
         info "  # Edit .kiket/manifest.yaml"
         info "  kiket extensions lint"
         info "  kiket extensions test"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "init [PATH]", "Create or refresh .kiket/manifest.yaml in an existing project"
+      option :extension_id, type: :string, desc: "Extension ID to use in the manifest"
+      option :name, type: :string, desc: "Extension display name"
+      option :template, type: :string, default: "custom", desc: "Template type for hooks"
+      def init(path = ".")
+        dir = File.expand_path(path)
+        unless File.directory?(dir)
+          error "Directory #{dir} not found"
+          exit 1
+        end
+
+        name = options[:name] || File.basename(dir)
+        generate_manifest(dir, name, options[:template], extension_id: options[:extension_id])
+        success "Manifest created at #{File.join(dir, '.kiket/manifest.yaml')}"
       rescue StandardError => e
         handle_error(e)
       end
@@ -139,10 +230,14 @@ module Kiket
         # Run SDK-specific linting
         if File.exist?(File.join(path, "requirements.txt"))
           info "Running Python linting..."
-          system("cd #{path} && ruff check . #{"--fix" if options[:fix]}")
+          cmd = "cd #{path} && ruff check ."
+          cmd += " --fix" if options[:fix]
+          system(cmd)
         elsif File.exist?(File.join(path, "package.json"))
           info "Running TypeScript linting..."
-          system("cd #{path} && npm run lint #{"-- --fix" if options[:fix]}")
+          cmd = "cd #{path} && npm run lint"
+          cmd += " -- --fix" if options[:fix]
+          system(cmd)
         end
       rescue StandardError => e
         handle_error(e)
@@ -169,6 +264,42 @@ module Kiket
           error "No test framework detected"
           exit 1
         end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "replay", "Replay a recorded payload against a local extension endpoint"
+      option :payload, type: :string, desc: "Path to JSON payload (defaults to STDIN)"
+      option :template, type: :string, desc: "Built-in template (#{REPLAY_TEMPLATES.keys.join(', ')})"
+      option :url, type: :string, default: "http://localhost:8080/webhook", desc: "Destination URL"
+      option :method, type: :string, default: "POST", desc: "HTTP method"
+      option :header, type: :array, desc: "Custom headers (KEY=VALUE)"
+      option :env_file, type: :string, desc: "Env file for injecting secrets"
+      option :secret_prefix, type: :string, default: "KIKET_SECRET_", desc: "ENV prefix for secrets"
+      option :signing_secret, type: :string, desc: "Signing secret to compute X-Kiket-Signature"
+      def replay
+        payload = build_replay_payload(options)
+        body = JSON.pretty_generate(payload)
+        headers = { "Content-Type" => "application/json", "Accept" => "application/json" }
+        Array(options[:header]).each do |entry|
+          key, value = entry.split("=", 2)
+          headers[key] = value if key && value
+        end
+
+        if present?(options[:signing_secret])
+          signature = OpenSSL::HMAC.hexdigest("SHA256", options[:signing_secret], body)
+          headers["X-Kiket-Signature"] = signature
+        end
+
+        response = perform_replay_request(options[:url], options[:method], body, headers)
+        code = response.code.to_i
+        color = code >= 400 ? :red : :green
+        puts pastel.public_send(color, "HTTP #{code}")
+        puts response.body if response.body&.strip&.length&.positive?
+        exit 1 if code >= 400
+      rescue JSON::ParserError => e
+        error "Invalid JSON payload: #{e.message}"
+        exit 1
       rescue StandardError => e
         handle_error(e)
       end
@@ -514,16 +645,56 @@ module Kiket
         handle_error(e)
       end
 
+      desc "secrets:pull EXTENSION_ID", "Download extension-scoped secrets into an env file"
+      option :output, type: :string, default: ".env.extension", desc: "Destination env file"
+      def extension_secrets_pull(extension_id)
+        ensure_authenticated!
+        env_path = options[:output]
+        secrets = client.get("/api/v1/extensions/#{extension_id}/secrets")
+        File.open(env_path, "w") do |file|
+          file.puts "# Synced secrets for #{extension_id} at #{Time.now.utc}"
+          secrets.each do |meta|
+            detail = client.get("/api/v1/extensions/#{extension_id}/secrets/#{meta["key"]}")
+            next unless detail["value"]
+            file.puts "#{meta["key"]}=#{detail["value"]}"
+          end
+        end
+        success "Secrets written to #{env_path}"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "secrets:push EXTENSION_ID", "Push secrets from an env file to the platform"
+      option :env_file, type: :string, default: ".env", desc: "Env file containing KEY=VALUE pairs"
+      def extension_secrets_push(extension_id)
+        ensure_authenticated!
+        env_path = options[:env_file]
+        values = load_env_file(env_path)
+        if values.empty?
+          warning "No secrets found in #{env_path}"
+          return
+        end
+
+        values.each do |key, value|
+          store_extension_secret(extension_id, key, value)
+        end
+
+        success "Synced #{values.size} secret(s) to #{extension_id}"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       private
 
-      def generate_manifest(dir, name, template_type)
+      def generate_manifest(dir, name, template_type, extension_id: nil)
         manifest_dir = File.join(dir, ".kiket")
         FileUtils.mkdir_p(manifest_dir)
+        resolved_id = extension_id.presence || default_extension_id(name)
 
         manifest = {
           "model_version" => "1.0",
           "extension" => {
-            "id" => name.downcase.tr(" ", "_"),
+            "id" => resolved_id,
             "name" => name,
             "version" => "1.0.0",
             "description" => "Description of #{name}"
@@ -676,10 +847,12 @@ module Kiket
             },
             "devDependencies": {
               "@types/node": "^20.0.0",
-              "typescript": "^5.0.0",
-              "jest": "^29.0.0",
               "@typescript-eslint/eslint-plugin": "^6.0.0",
-              "eslint": "^8.0.0"
+              "@typescript-eslint/parser": "^6.0.0",
+              "eslint": "^8.0.0",
+              "jest": "^29.0.0",
+              "ts-jest": "^29.0.0",
+              "typescript": "^5.0.0"
             }
           }
         JSON
@@ -796,7 +969,7 @@ module Kiket
       end
 
       def generate_gitignore(dir)
-        File.write(File.join(dir, ".gitignore"), <<~GITIGNORE)
+    File.write(File.join(dir, ".gitignore"), <<~GITIGNORE)
           # Dependencies
           node_modules/
           __pycache__/
@@ -830,7 +1003,27 @@ module Kiket
         GITIGNORE
       end
 
-      def generate_tests(dir, sdk, _template_type)
+      def generate_env_example(dir)
+    File.write(File.join(dir, ".env.example"), <<~ENVFILE)
+      # Example secrets - copy to .env and update values
+      # Use `kiket extensions secrets push <extension_id> --env-file .env`
+      SAMPLE_API_TOKEN=replace_me
+      SAMPLE_WEBHOOK_SECRET=replace_me
+        ENVFILE
+      end
+
+      def generate_replay_samples(dir, template_type)
+    replay_dir = File.join(dir, "replay")
+    FileUtils.mkdir_p(replay_dir)
+    REPLAY_TEMPLATES.each do |name, payload|
+      File.write(
+        File.join(replay_dir, "#{name}.json"),
+        JSON.pretty_generate(payload.merge("template_hint" => template_type))
+      )
+    end
+      end
+
+      def generate_tests(dir, sdk, _template_type, name)
         case sdk
         when "python"
           test_dir = File.join(dir, "tests")
@@ -861,13 +1054,51 @@ module Kiket
                 assert response["status"] == "allow"
           PYTHON
 
-          File.write(File.join(dir, "pytest.ini"), <<~INI)
-            [pytest]
-            testpaths = tests
-            python_files = test_*.py
-            python_classes = Test*
-            python_functions = test_*
+      File.write(File.join(dir, "pytest.ini"), <<~INI)
+        [pytest]
+        testpaths = tests
+        python_files = test_*.py
+        python_classes = Test*
+        python_functions = test_*
           INI
+        when "node"
+          test_dir = File.join(dir, "tests")
+          FileUtils.mkdir_p(test_dir)
+
+      File.write(File.join(test_dir, "handler.test.ts"), <<~TS)
+        import { handleEvent } from '../src/handler';
+
+        test('before transition allows by default', async () => {
+          const response = await handleEvent({ event_type: 'before_transition' } as any);
+          expect(response.status).toBeDefined();
+        });
+      TS
+
+      File.write(File.join(dir, "jest.config.js"), <<~JS)
+        module.exports = {
+          preset: 'ts-jest',
+          testEnvironment: 'node',
+          roots: ['<rootDir>/tests']
+        };
+          JS
+        when "ruby"
+          spec_dir = File.join(dir, "spec")
+          FileUtils.mkdir_p(spec_dir)
+
+      module_name = name.gsub(/\s+/, "")
+
+      File.write(File.join(spec_dir, "handler_spec.rb"), <<~RUBY)
+        # frozen_string_literal: true
+
+        require "rspec"
+        require_relative "../lib/handler"
+
+        RSpec.describe #{module_name}::Handler do
+          it "allows unknown events" do
+            expect(described_class.handle_event("event_type" => "unknown")[:status]).to eq("allow")
+          end
+        end
+          RUBY
         end
       end
 
@@ -893,6 +1124,41 @@ module Kiket
                   - run: pip install -r requirements.txt
                   - run: pytest
                   - run: ruff check .
+          YAML
+        when "node"
+          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
+            name: Test
+
+            on: [push, pull_request]
+
+            jobs:
+              test:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: actions/setup-node@v4
+                    with:
+                      node-version: '20'
+                  - run: npm install
+                  - run: npm run lint
+                  - run: npm test -- --runInBand
+          YAML
+        when "ruby"
+          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
+            name: Test
+
+            on: [push, pull_request]
+
+            jobs:
+              test:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: ruby/setup-ruby@v1
+                    with:
+                      ruby-version: '3.2'
+                      bundler-cache: true
+                  - run: bundle exec rspec
           YAML
         end
       end
@@ -997,6 +1263,98 @@ module Kiket
           Pathname.new(path).relative_path_from(Pathname.new(Dir.pwd)).to_s
         rescue ArgumentError
           path
+        end
+
+        def default_extension_id(name)
+          slug = name.to_s.downcase.gsub(/[^a-z0-9]+/, ".").gsub(/\.{2,}/, ".").gsub(/\A\.|\.\z/, "")
+          slug = "example.#{SecureRandom.hex(2)}" if slug.empty?
+          parts = slug.split(".")
+          parts.unshift("com") if parts.length < 2
+          parts.join(".")
+        end
+
+        def build_replay_payload(opts)
+          require "multi_json"
+        payload = if present?(opts[:payload])
+                      MultiJson.load(File.read(opts[:payload]))
+                    elsif present?(opts[:template])
+                      template = REPLAY_TEMPLATES[opts[:template]]
+                      raise ArgumentError, "Unknown template #{opts[:template]}" unless template
+                      MultiJson.load(MultiJson.dump(template))
+                    else
+                      input = STDIN.read
+                      raise ArgumentError, "No payload provided (pass --payload or pipe data)" if input.strip.empty?
+                      MultiJson.load(input)
+                    end
+
+          secrets = {}
+          if present?(opts[:env_file])
+            secrets.merge!(load_env_file(opts[:env_file]))
+          end
+
+          prefix = opts[:secret_prefix].to_s
+          if present?(prefix)
+            ENV.each do |key, value|
+              next unless key.start_with?(prefix)
+              secrets[key.delete_prefix(prefix)] = value
+            end
+          end
+
+          if secrets.any?
+            payload["secrets"] ||= {}
+            payload["secrets"].merge!(secrets)
+          end
+
+          payload
+        end
+
+        def perform_replay_request(url, method, body, headers)
+          uri = URI.parse(url)
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = uri.scheme == "https"
+          http.read_timeout = 10
+          klass = case method.to_s.upcase
+                  when "POST" then Net::HTTP::Post
+                  when "PUT" then Net::HTTP::Put
+                  else Net::HTTP::Post
+                  end
+          request = klass.new(uri.request_uri)
+          headers.each { |k, v| request[k] = v }
+          request.body = body
+          http.request(request)
+        end
+
+        def load_env_file(path)
+          return {} if blank?(path)
+          unless File.exist?(path)
+            warning "Env file #{path} not found"
+            return {}
+          end
+
+          File.readlines(path).each_with_object({}) do |line, acc|
+            line = line.strip
+            next if line.empty? || line.start_with?("#")
+            key, value = line.split("=", 2)
+            next unless key && value
+            acc[key.strip] = value.strip
+          end
+        rescue StandardError => e
+          warning "Failed to read #{path}: #{e.message}"
+          {}
+        end
+
+        def store_extension_secret(extension_id, key, value)
+          payload = { secret: { key: key, value: value } }
+          client.post("/api/v1/extensions/#{extension_id}/secrets", body: payload)
+        rescue Kiket::ValidationError, Kiket::APIError => e
+          if (e.respond_to?(:status) && e.status == 422) || e.message&.match?(/already/i)
+            client.patch(
+              "/api/v1/extensions/#{extension_id}/secrets/#{key}",
+              body: { secret: { value: value } }
+            )
+          else
+            warning "Failed to set secret #{key} for #{extension_id}: #{e.message}"
+          end
         end
       end
     end

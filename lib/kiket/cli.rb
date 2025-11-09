@@ -10,6 +10,7 @@ require_relative "commands/secrets"
 require_relative "commands/analytics"
 require_relative "commands/sandbox"
 require_relative "commands/doctor"
+require_relative "commands/sla"
 
 module Kiket
   class CLI < Thor
@@ -44,6 +45,9 @@ module Kiket
 
     desc "sandbox SUBCOMMAND ...ARGS", "Demo environment management"
     subcommand "sandbox", Commands::Sandbox
+
+    desc "sla SUBCOMMAND ...ARGS", "SLA monitoring utilities"
+    subcommand "sla", Commands::Sla
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor
