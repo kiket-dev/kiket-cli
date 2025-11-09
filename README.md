@@ -76,6 +76,9 @@ kiket marketplace install PRODUCT         # Install a product
 kiket marketplace upgrade INSTALLATION    # Upgrade installation
 kiket marketplace uninstall INSTALLATION  # Uninstall product
 kiket marketplace status [INSTALLATION]   # Show installation status
+kiket marketplace metadata [PATH]         # Create/update .kiket/product.yaml metadata
+kiket marketplace import SOURCE           # Import blueprint assets + metadata into the workspace
+kiket marketplace sync_samples            # Copy reference bundles locally (with metadata manifests)
 ```
 
 ### Extensions Commands

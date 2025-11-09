@@ -4,6 +4,7 @@ require_relative "base"
 require "yaml"
 require "json"
 require "fileutils"
+require "pathname"
 
 module Kiket
   module Commands
@@ -352,6 +353,139 @@ module Kiket
         info "  Definition root: #{definition_root}"
       end
 
+      option :identifier, type: :string, desc: "Override identifier stored in the manifest"
+      option :name, type: :string, desc: "Product name override"
+      option :version, type: :string, desc: "Version override"
+      option :description, type: :string, desc: "Description override"
+      option :categories, type: :array, desc: "Comma-separated categories (e.g. marketing operations)"
+      option :pricing_model, type: :string, desc: "Pricing model identifier"
+      option :pricing_summary, type: :string, desc: "Short pricing summary"
+      option :prerequisites, type: :array, desc: "List of prerequisite setup steps"
+      option :published, type: :boolean, desc: "Mark blueprint as published/visible"
+      option :sync_blueprint, type: :boolean, default: true, desc: "Also update config/marketplace/blueprints/<id>.yml"
+      desc "metadata [PATH]", "Create or update a product metadata manifest (.kiket/product.yaml)"
+      def metadata(path = ".")
+        definition_root = File.expand_path(path)
+        unless Dir.exist?(definition_root)
+          error "Directory not found: #{definition_root}"
+          exit 1
+        end
+
+        blueprint = load_product_metadata(definition_root)
+        identifier = options[:identifier] || blueprint&.dig("identifier") || File.basename(definition_root)
+        identifier = identifier.to_s.strip
+        if identifier.empty?
+          error "Identifier required (use --identifier)"
+          exit 1
+        end
+
+        default_name = default_name_for(identifier)
+        blueprint ||= default_blueprint_payload(
+          identifier,
+          options[:name] || default_name,
+          options[:version] || "0.1.0",
+          options[:description] || "Describe #{default_name}",
+          definition_path: relative_definition_path(definition_root)
+        )
+
+        blueprint["identifier"] = identifier
+        blueprint["name"] = options[:name] if options[:name]
+        blueprint["version"] = options[:version] if options[:version]
+        blueprint["description"] = options[:description] if options[:description]
+        apply_metadata_overrides!(blueprint, options)
+
+        normalized = normalize_blueprint_payload(blueprint, definition_path: relative_definition_path(definition_root))
+        manifest_path = write_metadata_manifest(definition_root, normalized)
+        log_info "Metadata manifest written to #{manifest_path}"
+
+        if options[:sync_blueprint]
+          blueprint_path = write_blueprint_config(normalized)
+          log_info "Blueprint config updated at #{blueprint_path}"
+        end
+
+        success "Metadata updated for #{identifier}"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      option :destination, type: :string, desc: "Destination directory (defaults to definitions/<identifier>)"
+      option :identifier, type: :string, desc: "Override detected identifier"
+      option :name, type: :string, desc: "Name override when generating metadata"
+      option :version, type: :string, desc: "Version override when generating metadata"
+      option :description, type: :string, desc: "Description override when generating metadata"
+      option :categories, type: :array, desc: "Categories to set on import"
+      option :pricing_model, type: :string, desc: "Pricing model to set on import"
+      option :pricing_summary, type: :string, desc: "Pricing summary to set on import"
+      option :prerequisites, type: :array, desc: "Prerequisites to set on import"
+      option :published, type: :boolean, desc: "Published flag override"
+      option :force, type: :boolean, desc: "Overwrite destination if it exists"
+      option :metadata_only, type: :boolean, desc: "Only sync metadata, skip copying source files"
+      option :sync_blueprint, type: :boolean, default: true, desc: "Also update config/marketplace/blueprints/<id>.yml"
+      desc "import SOURCE", "Import a blueprint repo into the local workspace with metadata"
+      def import(source = nil)
+        if source.to_s.strip.empty?
+          error "Source path required"
+          exit 1
+        end
+
+        source_path = File.expand_path(source)
+        unless Dir.exist?(source_path)
+          error "Source directory not found: #{source_path}"
+          exit 1
+        end
+
+        blueprint = load_product_metadata(source_path)
+        blueprint ||= discover_blueprint_from_subdir(source_path, options[:identifier])
+
+        identifier = options[:identifier] || blueprint&.dig("identifier") || File.basename(source_path)
+        identifier = identifier.to_s.strip
+        if identifier.empty?
+          error "Unable to determine identifier. Provide --identifier."
+          exit 1
+        end
+
+        destination = options[:destination]&.strip
+        destination ||= File.join("definitions", identifier)
+        destination_path = File.expand_path(destination)
+
+        unless options[:metadata_only]
+          if File.exist?(destination_path) && File.identical?(source_path, destination_path)
+            info "Source and destination are identical; skipping file copy."
+          else
+            prepare_destination!(destination_path, force: options[:force], empty_ok: true)
+            FileUtils.cp_r("#{source_path}/.", destination_path)
+          end
+        end
+
+        default_name = default_name_for(identifier)
+        blueprint ||= default_blueprint_payload(
+          identifier,
+          options[:name] || default_name,
+          options[:version] || "0.1.0",
+          options[:description] || "Describe #{default_name}",
+          definition_path: relative_definition_path(destination_path)
+        )
+
+        blueprint["identifier"] = identifier
+        blueprint["name"] = options[:name] if options[:name]
+        blueprint["version"] = options[:version] if options[:version]
+        blueprint["description"] = options[:description] if options[:description]
+        apply_metadata_overrides!(blueprint, options)
+
+        normalized = normalize_blueprint_payload(blueprint, definition_path: relative_definition_path(destination_path))
+        manifest_path = write_metadata_manifest(destination_path, normalized)
+        log_info "Metadata manifest synced to #{manifest_path}"
+
+        if options[:sync_blueprint]
+          blueprint_path = write_blueprint_config(normalized)
+          log_info "Blueprint config updated at #{blueprint_path}"
+        end
+
+        success "Imported #{identifier} into #{destination_path}"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       option :env_file, type: :string, desc: "Path to env file with KIKET_SECRET_* entries"
       desc "secrets SUBCOMMAND INSTALLATION_ID", "Manage marketplace installation secrets (sync currently supported)"
       def secrets(action = nil, installation_id = nil)
@@ -459,6 +593,7 @@ module Kiket
       option :destination, aliases: "-o", default: File.join(Dir.pwd, "marketplace-samples"), desc: "Destination folder"
       option :blueprints, aliases: "-b", type: :array, default: %w[sample marketing_ops], desc: "Blueprint directories to copy"
       option :force, type: :boolean, desc: "Overwrite destination if it exists"
+      option :with_metadata, type: :boolean, default: true, desc: "Generate product metadata manifests alongside samples"
       def sync_samples
         dest_root = File.expand_path(options[:destination])
         prepare_destination!(dest_root, force: options[:force], empty_ok: true)
@@ -476,6 +611,22 @@ module Kiket
           FileUtils.mkdir_p(File.dirname(target))
           FileUtils.cp_r(source, target)
           copied << blueprint
+
+          next unless options[:with_metadata]
+
+          identifier_guess = blueprint.tr("_", "-")
+          existing_metadata = load_blueprint_from_repo(identifier_guess) || load_blueprint_from_repo(blueprint)
+          metadata_payload = existing_metadata || default_blueprint_payload(
+            identifier_guess,
+            default_name_for(identifier_guess),
+            "0.1.0",
+            "Describe #{default_name_for(identifier_guess)}",
+            definition_path: relative_definition_path(target)
+          )
+
+          normalized = normalize_blueprint_payload(metadata_payload, definition_path: relative_definition_path(target))
+          normalized["identifier"] ||= identifier_guess
+          write_metadata_manifest(target, normalized)
         end
 
         if copied.empty?
@@ -842,7 +993,13 @@ module Kiket
       end
 
       def default_blueprint_template(identifier, name, version, description)
-        template = {
+        YAML.dump(default_blueprint_payload(identifier, name, version, description))
+      end
+
+      def default_blueprint_payload(identifier, name, version, description, definition_path: nil)
+        repo_path = definition_path || "definitions/#{identifier}"
+        project_definition = File.join(repo_path, ".kiket")
+        {
           "identifier" => identifier,
           "version" => version,
           "name" => name,
@@ -857,7 +1014,7 @@ module Kiket
             "repositories" => [
               {
                 "type" => "local",
-                "path" => "definitions/#{identifier}",
+                "path" => repo_path,
                 "description" => "Primary definition repository"
               }
             ],
@@ -865,7 +1022,7 @@ module Kiket
               {
                 "key" => identifier[0, 8].upcase,
                 "name" => "#{name} Project",
-                "definition_path" => "definitions/#{identifier}/.kiket",
+                "definition_path" => project_definition,
                 "description" => "Primary project for #{name}",
                 "repository_url" => "https://github.com/example/#{identifier}"
               }
@@ -873,7 +1030,159 @@ module Kiket
             "extensions" => []
           }
         }
-        YAML.dump(template)
+      end
+
+      def apply_metadata_overrides!(blueprint, overrides)
+        metadata = blueprint["metadata"] ||= {}
+        metadata["categories"] = Array(overrides[:categories]) if overrides[:categories]
+        metadata["prerequisites"] = Array(overrides[:prerequisites]) if overrides[:prerequisites]
+        metadata["published"] = overrides[:published] unless overrides[:published].nil?
+
+        metadata["pricing"] ||= {}
+        metadata["pricing"]["model"] = overrides[:pricing_model] if overrides[:pricing_model]
+        metadata["pricing"]["summary"] = overrides[:pricing_summary] if overrides[:pricing_summary]
+      end
+
+      def product_metadata_path(root)
+        File.join(root, ".kiket", "product.yaml")
+      end
+
+      def load_product_metadata(root)
+        manifest_path = product_metadata_path(root)
+        return nil unless File.exist?(manifest_path)
+
+        load_yaml_file(manifest_path)
+      end
+
+      def discover_blueprint_from_subdir(root, identifier = nil)
+        metadata = nil
+        if identifier
+          candidate = find_blueprint_config_path(identifier, root: root)
+          metadata = load_yaml_file(candidate) if candidate
+        end
+        return metadata if metadata
+
+        config_dir = blueprint_config_dir(root)
+        return nil unless Dir.exist?(config_dir)
+
+        first_file = Dir.glob(File.join(config_dir, "*.yml")).first
+        return nil unless first_file
+
+        load_yaml_file(first_file)
+      end
+
+      def load_blueprint_from_repo(identifier)
+        return nil if identifier.to_s.strip.empty?
+
+        path = find_blueprint_config_path(identifier)
+        return nil unless path
+
+        load_yaml_file(path)
+      end
+
+      def normalize_blueprint_payload(payload, definition_path: nil)
+        data = deep_stringify(payload || {})
+        data["metadata"] ||= {}
+        data["metadata"]["categories"] = Array(data["metadata"]["categories"]).compact if data["metadata"].key?("categories")
+        data["metadata"]["categories"] ||= []
+        data["metadata"]["prerequisites"] = Array(data["metadata"]["prerequisites"]).compact if data["metadata"].key?("prerequisites")
+        data["metadata"]["prerequisites"] ||= []
+        data["metadata"]["repositories"] ||= []
+        data["metadata"]["projects"] ||= []
+        data["metadata"]["extensions"] ||= []
+
+        if definition_path && data["metadata"]["repositories"].empty?
+          data["metadata"]["repositories"] << {
+            "type" => "local",
+            "path" => definition_path,
+            "description" => "Primary definition repository"
+          }
+        end
+
+        if definition_path && data["metadata"]["projects"].empty?
+          data["metadata"]["projects"] << {
+            "key" => data["identifier"].to_s[0, 8].upcase,
+            "name" => "#{data["name"] || default_name_for(data["identifier"])} Project",
+            "definition_path" => File.join(definition_path, ".kiket"),
+            "description" => "Primary project for #{data["name"] || default_name_for(data["identifier"])}"
+          }
+        end
+
+        data
+      end
+
+      def write_metadata_manifest(root, payload)
+        manifest_path = product_metadata_path(root)
+        FileUtils.mkdir_p(File.dirname(manifest_path))
+        File.write(manifest_path, YAML.dump(payload))
+        manifest_path
+      end
+
+      def write_blueprint_config(payload)
+        dir = blueprint_config_dir
+        FileUtils.mkdir_p(dir)
+        path = blueprint_config_path(payload["identifier"])
+        File.write(path, YAML.dump(payload))
+        path
+      end
+
+      def blueprint_config_dir(base_dir = Dir.pwd)
+        File.join(base_dir, "config", "marketplace", "blueprints")
+      end
+
+      def blueprint_config_path(identifier, base_dir = Dir.pwd)
+        sanitized = identifier.to_s.tr("-", "_")
+        File.join(blueprint_config_dir(base_dir), "#{sanitized}.yml")
+      end
+
+      def find_blueprint_config_path(identifier, root: Dir.pwd)
+        dir = blueprint_config_dir(root)
+        return nil unless Dir.exist?(dir)
+
+        underscored = File.join(dir, "#{identifier.to_s.tr('-', '_')}.yml")
+        dashed = File.join(dir, "#{identifier}.yml")
+
+        return underscored if File.exist?(underscored)
+        return dashed if File.exist?(dashed)
+
+        nil
+      end
+
+      def relative_definition_path(path)
+        Pathname.new(path).expand_path.relative_path_from(Pathname.new(Dir.pwd)).to_s
+      rescue ArgumentError
+        path
+      end
+
+      def default_name_for(identifier)
+        return "Product" if identifier.to_s.strip.empty?
+
+        identifier.split(/[-_]/).map { |segment| segment.capitalize }.join(" ")
+      end
+
+      def load_yaml_file(path)
+        return nil unless path && File.exist?(path)
+
+        YAML.safe_load(File.read(path), aliases: true) || {}
+      rescue Psych::SyntaxError => e
+        raise "Unable to parse YAML at #{path}: #{e.message}"
+      end
+
+      def deep_stringify(value)
+        case value
+        when Hash
+          value.each_with_object({}) do |(key, val), memo|
+            memo[key.to_s] = deep_stringify(val)
+          end
+        when Array
+          value.map { |entry| deep_stringify(entry) }
+        else
+          value
+        end
+      end
+
+      def log_info(message)
+        puts pastel.blue("ℹ #{message}")
       end
 
       def sync_installation_secrets(installation_id)

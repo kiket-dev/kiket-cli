@@ -154,6 +154,69 @@ RSpec.describe Kiket::Commands::Marketplace do
     end
   end
 
+  describe "#metadata" do
+    it "writes product manifest and blueprint config" do
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          FileUtils.mkdir_p("definitions/demo/.kiket")
+          FileUtils.mkdir_p("config/marketplace/blueprints")
+
+          described_class.start([
+                                   "metadata",
+                                   "definitions/demo",
+                                   "--identifier", "demo-kit",
+                                   "--name", "Demo Kit",
+                                   "--categories", "ops",
+                                   "--pricing-model", "team"
+                                 ])
+
+          manifest_path = File.join("definitions/demo/.kiket", "product.yaml")
+          expect(File).to exist(manifest_path)
+          manifest = YAML.safe_load(File.read(manifest_path))
+          expect(manifest["identifier"]).to eq("demo-kit")
+          expect(manifest.dig("metadata", "categories")).to eq(["ops"])
+
+          blueprint_path = File.join("config/marketplace/blueprints", "demo_kit.yml")
+          expect(File).to exist(blueprint_path)
+        end
+      end
+    end
+  end
+
+  describe "#import" do
+    it "copies assets and regenerates metadata" do
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          source = File.join(dir, "partner-kit")
+          FileUtils.mkdir_p(File.join(source, ".kiket"))
+          File.write(File.join(source, "README.md"), "# Partner Kit")
+          File.write(
+            File.join(source, ".kiket", "product.yaml"),
+            {
+              "identifier" => "sample-kit",
+              "name" => "Sample Kit",
+              "version" => "1.2.3",
+              "metadata" => {
+                "pricing" => { "model" => "custom" }
+              }
+            }.to_yaml
+          )
+
+          FileUtils.mkdir_p("config/marketplace/blueprints")
+
+          described_class.start(["import", source])
+
+          destination = File.join("definitions", "sample-kit")
+          expect(File).to exist(File.join(destination, "README.md"))
+          manifest_path = File.join(destination, ".kiket", "product.yaml")
+          expect(File).to exist(manifest_path)
+          config_path = File.join("config/marketplace/blueprints", "sample_kit.yml")
+          expect(File).to exist(config_path)
+        end
+      end
+    end
+  end
+
   describe "#sync_samples" do
     it "copies the requested blueprint directories" do
       Dir.mktmpdir do |dir|
@@ -166,6 +229,7 @@ RSpec.describe Kiket::Commands::Marketplace do
 
         definition_dir = File.join(dir, "sample", ".kiket")
         expect(Dir).to exist(definition_dir)
+        expect(File).to exist(File.join(definition_dir, "product.yaml"))
       end
     end
   end
