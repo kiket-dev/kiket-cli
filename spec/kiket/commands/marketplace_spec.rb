@@ -3,6 +3,7 @@
 require "spec_helper"
 require "kiket/commands/marketplace"
 require "tempfile"
+require "yaml"
 
 RSpec.describe Kiket::Commands::Marketplace do
   let(:config) { test_config }
@@ -61,7 +62,7 @@ RSpec.describe Kiket::Commands::Marketplace do
         case path
         when "/api/v1/marketplace/installations"
           installation
-        when %r{\A/api/v1/extensions/.+/secrets\z}
+        when %r{\A/api/v1/marketplace/installations/\d+/secrets\z}
           {}
         when "/api/v1/marketplace/installations/123/refresh"
           refreshed
@@ -82,7 +83,100 @@ RSpec.describe Kiket::Commands::Marketplace do
         env_file.unlink
       end
 
-      expect(post_calls.map(&:first)).to include("/api/v1/extensions/com.example.required/secrets")
+      expect(post_calls.map(&:first)).to include("/api/v1/marketplace/installations/123/secrets")
     end
+  end
+
+  describe "#telemetry report" do
+    it "renders telemetry summary" do
+      summary = {
+        "window_seconds" => 86_400,
+        "total_events" => 10,
+        "error_count" => 2,
+        "error_rate" => 20.0,
+        "avg_latency_ms" => 120.5,
+        "p95_latency_ms" => 250,
+        "top_extensions" => [
+          {
+            "name" => "Make.com",
+            "extension_id" => "com.example.make",
+            "total" => 6,
+            "error_rate" => 10.0,
+            "avg_latency_ms" => 110.0
+          }
+        ],
+        "recent_errors" => [
+          {
+            "name" => "Make.com",
+            "extension_id" => "com.example.make",
+            "event" => "workflow.before_transition",
+            "error_message" => "Timeout",
+            "occurred_at" => "2025-11-09T10:00:00Z"
+          }
+        ]
+      }
+
+      expect(client).to receive(:get)
+        .with("/api/v1/marketplace/telemetry", params: {})
+        .and_return(summary)
+
+      output = capture_stdout do
+        described_class.start(%w[telemetry report])
+      end
+
+      expect(output).to include("Marketplace Telemetry")
+      expect(output).to include("Requests: 10")
+      expect(output).to include("Make.com")
+    end
+  end
+
+  describe "#onboarding_wizard" do
+    it "creates a blueprint scaffold from the template" do
+      Dir.mktmpdir do |dir|
+        destination = File.join(dir, "custom-blueprint")
+
+        described_class.start([
+                                 "onboarding_wizard",
+                                 "--identifier", "custom-blueprint",
+                                 "--name", "Custom Blueprint",
+                                 "--description", "Demo product",
+                                 "--destination", destination,
+                                 "--template", "sample",
+                                 "--force"
+                               ])
+
+        manifest_path = File.join(destination, ".kiket", "manifest.yaml")
+        expect(File).to exist(manifest_path)
+        manifest = YAML.safe_load(File.read(manifest_path))
+        expect(manifest["identifier"]).to eq("custom-blueprint")
+        expect(manifest["name"]).to eq("Custom Blueprint")
+      end
+    end
+  end
+
+  describe "#sync_samples" do
+    it "copies the requested blueprint directories" do
+      Dir.mktmpdir do |dir|
+        described_class.start([
+                                 "sync_samples",
+                                 "--destination", dir,
+                                 "--blueprints", "sample",
+                                 "--force"
+                               ])
+
+        definition_dir = File.join(dir, "sample", ".kiket")
+        expect(Dir).to exist(definition_dir)
+      end
+    end
+  end
+
+  def capture_stdout
+    original = $stdout
+    fake = StringIO.new
+    $stdout = fake
+    yield
+    fake.string
+  ensure
+    $stdout = original
   end
 end

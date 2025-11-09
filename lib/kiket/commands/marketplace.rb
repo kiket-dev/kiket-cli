@@ -8,6 +8,8 @@ require "fileutils"
 module Kiket
   module Commands
     class Marketplace < Base
+      map "onboarding-wizard" => :onboarding_wizard
+      map "sync-samples" => :sync_samples
       desc "list", "List available marketplace products"
       option :all, type: :boolean, desc: "Show all versions"
       def list
@@ -395,9 +397,7 @@ module Kiket
         handle_error(e)
       end
 
-      option :start_date, type: :string, desc: "Start date (YYYY-MM-DD)"
-      option :end_date, type: :string, desc: "End date (YYYY-MM-DD)"
-      option :metrics, type: :string, desc: "Comma-separated metric list"
+      option :window_hours, type: :numeric, desc: "Lookback window in hours (default: 24)"
       desc "telemetry SUBCOMMAND", "Marketplace telemetry utilities (report)"
       def telemetry(action = nil)
         case action
@@ -406,6 +406,83 @@ module Kiket
         else
           error "Unknown telemetry action '#{action}'. Supported: report"
           exit 1
+        end
+      end
+
+      desc "onboarding_wizard", "Generate a local blueprint from the marketplace template"
+      option :identifier, aliases: "-i", desc: "Blueprint identifier (e.g., marketing-ops)"
+      option :name, aliases: "-n", desc: "Product name"
+      option :description, aliases: "-d", desc: "Product description"
+      option :template, aliases: "-t", default: "sample", desc: "Definition template to copy"
+      option :destination, aliases: "-o", desc: "Destination directory"
+      option :force, type: :boolean, desc: "Overwrite destination if it exists"
+      def onboarding_wizard
+        identifier = options[:identifier] || prompt.ask("Product identifier (letters, numbers, dashes):") do |q|
+          q.required true
+          q.validate(/^[a-z0-9\-]+$/i)
+          q.modify :strip, :downcase
+        end
+
+        product_name = options[:name] || prompt.ask("Product name:") do |q|
+          q.default identifier.split("-").map(&:capitalize).join(" ")
+        end
+
+        description = options[:description] || prompt.ask("Product description:") do |q|
+          q.default "Describe #{product_name}"
+        end
+
+        template_name = (options[:template] || "sample").strip
+        template_path = File.join(definitions_root, template_name)
+        unless Dir.exist?(template_path)
+          error "Template '#{template_name}' not found under #{definitions_root}"
+          exit 1
+        end
+
+        destination = options[:destination]&.strip
+        destination ||= File.join(Dir.pwd, identifier)
+        prepare_destination!(destination, force: options[:force])
+
+        FileUtils.cp_r("#{template_path}/.", destination)
+        customize_manifest(destination, identifier: identifier, name: product_name, description: description)
+        create_onboarding_readme(destination, identifier: identifier, name: product_name)
+
+        success "Blueprint scaffold created at #{destination}"
+        puts pastel.blue("ℹ Next steps")
+        puts "  • Review #{File.join(destination, '.kiket', 'manifest.yaml')}"
+        puts "  • Commit the repo and push to GitHub"
+        puts "  • Publish a preview with: kiket extensions publish #{destination} --registry marketplace --dry-run"
+      rescue Interrupt
+        warning "Wizard cancelled"
+      end
+
+      desc "sync_samples", "Copy sample blueprint repositories locally"
+      option :destination, aliases: "-o", default: File.join(Dir.pwd, "marketplace-samples"), desc: "Destination folder"
+      option :blueprints, aliases: "-b", type: :array, default: %w[sample marketing_ops], desc: "Blueprint directories to copy"
+      option :force, type: :boolean, desc: "Overwrite destination if it exists"
+      def sync_samples
+        dest_root = File.expand_path(options[:destination])
+        prepare_destination!(dest_root, force: options[:force], empty_ok: true)
+
+        copied = []
+        Array(options[:blueprints]).each do |blueprint|
+          source = File.join(definitions_root, blueprint)
+          unless Dir.exist?(source)
+            warning "Blueprint '#{blueprint}' not found; skipping"
+            next
+          end
+
+          target = File.join(dest_root, blueprint)
+          FileUtils.rm_rf(target)
+          FileUtils.mkdir_p(File.dirname(target))
+          FileUtils.cp_r(source, target)
+          copied << blueprint
+        end
+
+        if copied.empty?
+          warning "No sample blueprints copied"
+        else
+          success "Copied #{copied.length} blueprint(s) to #{dest_root}"
+          copied.each { |bp| puts "  • #{bp}" }
         end
       end
 
@@ -466,7 +543,7 @@ module Kiket
             value = resolve_secret_value(key, env_values, required: required, description: secret["description"])
             next if value.nil?
 
-            store_extension_secret(ext_id, key, value)
+            store_installation_secret(installation["id"], ext_id, key, value)
             resolved << { extension_id: ext_id, key: key }
           end
         end
@@ -530,6 +607,78 @@ module Kiket
         else
           warning "Failed to set secret #{key} for #{extension_id}: #{e.message}"
         end
+      end
+
+      def store_installation_secret(installation_id, extension_id, key, value)
+        payload = { secret: { extension_id: extension_id, key: key, value: value } }
+        client.post("/api/v1/marketplace/installations/#{installation_id}/secrets", body: payload)
+      rescue Kiket::ValidationError, Kiket::APIError => e
+        if (e.respond_to?(:status) && e.status == 422) || e.message&.match?(/already/i)
+          client.patch(
+            "/api/v1/marketplace/installations/#{installation_id}/secrets/#{key}",
+            body: { secret: { extension_id: extension_id, value: value } }
+          )
+        else
+          warning "Failed to set secret #{key} for #{extension_id} (installation #{installation_id}): #{e.message}"
+        end
+      end
+
+      def definitions_root
+        @definitions_root ||= File.expand_path("../../../../definitions", __dir__)
+      end
+
+      def customize_manifest(destination, identifier:, name:, description:)
+        manifest_path = File.join(destination, ".kiket", "manifest.yaml")
+        FileUtils.mkdir_p(File.dirname(manifest_path))
+        manifest = if File.exist?(manifest_path)
+                     YAML.safe_load(File.read(manifest_path)) || {}
+                   else
+                     {}
+                   end
+        manifest["identifier"] = identifier
+        manifest["name"] = name
+        manifest["description"] = description
+        manifest["version"] ||= "0.1.0"
+
+        File.write(manifest_path, YAML.dump(manifest))
+      end
+
+      def create_onboarding_readme(destination, identifier:, name:)
+        path = File.join(destination, "README.md")
+        content = <<~MARKDOWN
+          # #{name}
+
+          This repository was generated via `kiket marketplace onboarding-wizard` for the blueprint `#{identifier}`.
+
+          ## Next steps
+
+          1. Review `.kiket/manifest.yaml` and customize metadata.
+          2. Wire up workflows, extensions, and blueprints inside `definitions/`.
+          3. Run:
+
+             ```bash
+             kiket extensions lint #{destination}
+             kiket extensions publish #{destination} --registry marketplace --dry-run
+             ```
+
+          4. Push to GitHub and submit for marketplace review.
+
+          _Generated #{Time.now.utc}._
+        MARKDOWN
+        File.write(path, content)
+      end
+
+      def prepare_destination!(path, force: false, empty_ok: false)
+        expanded = File.expand_path(path)
+        if Dir.exist?(expanded)
+          if force
+            FileUtils.rm_rf(expanded)
+          elsif !empty_ok && Dir.children(expanded).any?
+            error "Destination #{expanded} already exists. Use --force to overwrite."
+            exit 1
+          end
+        end
+        FileUtils.mkdir_p(expanded)
       end
 
       def format_status(status)
@@ -763,44 +912,55 @@ module Kiket
 
       def telemetry_report
         ensure_authenticated!
-        org = organization
-        unless org
-          error "Organization required (--org or config default)"
-          exit 1
-        end
 
-        params = {
-          organization: org,
-          start_at: options[:start_date],
-          end_at: options[:end_date],
-          metrics: options[:metrics]
-        }.compact
+        params = {}
+        if options[:window_hours]
+          window = options[:window_hours].to_i
+          params[:window_hours] = window if window.positive?
+        end
 
         spinner = spinner("Fetching telemetry data...")
         spinner.auto_spin
-        response = client.get("/api/v1/analytics/usage", params: params)
+        response = client.get("/api/v1/marketplace/telemetry", params: params)
         spinner.success("Telemetry data retrieved")
 
-        totals = response.fetch("totals", {})
-        if totals.empty?
-          warning "No telemetry recorded for the selected window."
+        total = response["total_events"].to_i
+        if total.zero?
+          warning "No telemetry recorded in the selected window."
           return
         end
 
-        dataset = totals.map do |metric, data|
-          {
-            metric: metric,
-            quantity: data["quantity"],
-            unit: data["unit"] || response["unit"] || "count",
-            estimated_cost_cents: data["estimated_cost_cents"]
-          }
+        window_hours = (response["window_seconds"].to_i / 3600.0).round(1)
+        puts pastel.bold("\nMarketplace Telemetry")
+        puts "Window: last #{window_hours}h"
+        puts "Requests: #{total}"
+        puts "Errors: #{response["error_count"]} (#{response["error_rate"]}%)"
+        puts "Latency: avg #{response["avg_latency_ms"] || '—'}ms · p95 #{response["p95_latency_ms"] || '—'}ms"
+        puts ""
+
+        top_extensions = Array(response["top_extensions"])
+        if top_extensions.any?
+          dataset = top_extensions.map do |entry|
+            {
+              extension: entry["name"],
+              requests: entry["total"],
+              error_rate: "#{entry["error_rate"]}%",
+              avg_latency_ms: entry["avg_latency_ms"]
+            }
+          end
+          puts pastel.bold("Top extensions")
+          output_data(dataset, headers: %i[extension requests error_rate avg_latency_ms])
+        else
+          info "No extension telemetry to report."
         end
 
-        puts pastel.bold("\nMarketplace Telemetry")
-        puts "Organization: #{org}"
-        puts "Window: #{response["start_at"]} → #{response["end_at"]}"
-        puts ""
-        output_data(dataset, headers: %i[metric quantity unit estimated_cost_cents])
+        recent_errors = Array(response["recent_errors"])
+        if recent_errors.any?
+          puts "\n#{pastel.bold("Recent errors")}"
+          recent_errors.each do |entry|
+            puts "- #{entry["name"]} (#{entry["extension_id"]}) #{entry["event"]}: #{entry["error_message"]} [#{entry["occurred_at"]}]"
+          end
+        end
       rescue StandardError => e
         handle_error(e)
       end
