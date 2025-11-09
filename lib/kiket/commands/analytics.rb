@@ -180,6 +180,49 @@ module Kiket
         handle_error(e)
       end
 
+      desc "queries PROJECT_ID", "List query definitions for a project"
+      option :tag, type: :string, desc: "Filter by tag"
+      def queries(project_id)
+        ensure_authenticated!
+        org = organization
+
+        unless org
+          error "Organization required"
+          exit 1
+        end
+
+        response = client.get("/api/v1/projects/#{project_id}/queries", params: { organization: org })
+        entries = response.fetch("queries", [])
+
+        if options[:tag]
+          entries = entries.select { |entry| Array(entry["tags"]).include?(options[:tag]) }
+        end
+
+        if output_format == "human"
+          if entries.empty?
+            warning "No queries found for project #{response.dig("project", "name") || project_id}."
+            return
+          end
+
+          rows = entries.map do |entry|
+            {
+              id: entry["id"],
+              name: entry["name"],
+              model: entry["model"],
+              tags: Array(entry["tags"]).join(", "),
+              parameters: format_query_parameters(entry["parameters"]),
+              source: entry["source"]
+            }
+          end
+
+          output_data(rows, headers: %i[id name model tags parameters source])
+        else
+          output_data(entries, headers: nil)
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       private
 
       def format_metric(value)
@@ -199,6 +242,10 @@ module Kiket
       def format_currency(cents)
         cents = cents.to_i
         format("$%.2f", cents / 100.0)
+      end
+
+      def format_query_parameters(parameters)
+        Array(parameters).map { |param| param["name"] }.compact.join(", ")
       end
     end
   end

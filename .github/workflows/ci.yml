@@ -55,3 +55,40 @@ jobs:
       run: |
         kiket version
         kiket help
+
+  extension-suite:
+    runs-on: ubuntu-latest
+    needs: integration
+    env:
+      KIKET_API_TOKEN: dummy-token
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.2'
+        bundler-cache: true
+
+    - name: Set up Python toolchain
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install lint/test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest ruff
+
+    - name: Run extension CLI workflow
+      run: |
+        bundle exec exe/kiket extensions scaffold sample-extension \
+          --sdk python \
+          --template webhook_guard \
+          --force
+        bundle exec exe/kiket extensions lint sample-extension
+        bundle exec exe/kiket extensions test sample-extension
+        bundle exec exe/kiket extensions replay \
+          --template before_transition \
+          --url https://httpbin.org/post

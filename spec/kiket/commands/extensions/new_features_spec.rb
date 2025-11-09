@@ -93,5 +93,31 @@ RSpec.describe Kiket::Commands::Extensions do
       tmp.unlink
     end
   end
-end
 
+  describe "#test runner detection" do
+    let(:tmp_dir) { Dir.mktmpdir }
+
+    after do
+      FileUtils.remove_entry(tmp_dir, true) if tmp_dir && Dir.exist?(tmp_dir)
+    end
+
+    it "runs pytest via poetry when poetry files are present" do
+      File.write(File.join(tmp_dir, "poetry.lock"), "")
+      File.write(File.join(tmp_dir, "pyproject.toml"), "[tool.poetry]\nname = \"sample\"")
+
+      allow_any_instance_of(described_class).to receive(:command_available?).and_return(false)
+      expect_any_instance_of(described_class).to receive(:run_shell).with(/poetry run pytest/).and_return(true)
+
+      described_class.start(["test", tmp_dir])
+    end
+
+    it "runs npm test with watch flag when package.json exists" do
+      File.write(File.join(tmp_dir, "package.json"), { name: "sample", scripts: { test: "jest" } }.to_json)
+      File.write(File.join(tmp_dir, "package-lock.json"), "")
+
+      expect_any_instance_of(described_class).to receive(:run_shell).with(/npm test -- --watch/).and_return(true)
+
+      described_class.start(["test", tmp_dir, "--watch"])
+    end
+  end
+end

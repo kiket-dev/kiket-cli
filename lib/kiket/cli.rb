@@ -8,6 +8,7 @@ require_relative "commands/extensions"
 require_relative "commands/workflows"
 require_relative "commands/secrets"
 require_relative "commands/analytics"
+require_relative "commands/agents"
 require_relative "commands/sandbox"
 require_relative "commands/doctor"
 require_relative "commands/sla"
@@ -42,6 +43,9 @@ module Kiket
 
     desc "analytics SUBCOMMAND ...ARGS", "Telemetry and reporting"
     subcommand "analytics", Commands::Analytics
+
+    desc "agents SUBCOMMAND ...ARGS", "Agent definition utilities"
+    subcommand "agents", Commands::Agents
 
     desc "sandbox SUBCOMMAND ...ARGS", "Demo environment management"
     subcommand "sandbox", Commands::Sandbox

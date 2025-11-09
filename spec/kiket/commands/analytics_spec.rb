@@ -101,6 +101,39 @@ RSpec.describe Kiket::Commands::Analytics do
     end
   end
 
+  describe "analytics queries" do
+    it "lists query definitions for a project" do
+      response = {
+        "project" => { "id" => 7, "name" => "Delivery Ops" },
+        "queries" => [
+          {
+            "id" => "cycle_time_trend",
+            "name" => "Cycle Time Trend",
+            "model" => "fct_cycle_time",
+            "tags" => %w[delivery dashboards],
+            "parameters" => [
+              { "name" => "project_id" }
+            ],
+            "source" => "definitions/demo/.kiket/queries/cycle.yaml"
+          }
+        ]
+      }
+
+      expect(client).to receive(:get).with(
+        "/api/v1/projects/7/queries",
+        params: { organization: "test-org" }
+      ).and_return(response)
+
+      output = capture_stdout do
+        described_class.start(%w[queries 7])
+      end
+
+      expect(output).to include("cycle_time_trend")
+      expect(output).to include("fct_cycle_time")
+      expect(output).to include("project_id")
+    end
+  end
+
   def capture_stdout
     original_stdout = $stdout
     fake = StringIO.new

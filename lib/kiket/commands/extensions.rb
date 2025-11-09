@@ -246,24 +246,28 @@ module Kiket
       desc "test [PATH]", "Run extension tests"
       option :watch, type: :boolean, desc: "Watch for changes"
       def test(path = ".")
-        if File.exist?(File.join(path, "requirements.txt"))
-          info "Running Python tests..."
-          cmd = "cd #{path} && pytest"
-          cmd += " --watch" if options[:watch]
-          system(cmd)
-        elsif File.exist?(File.join(path, "package.json"))
-          info "Running TypeScript tests..."
-          cmd = "cd #{path} && npm test"
-          cmd += " -- --watch" if options[:watch]
-          system(cmd)
-        elsif File.exist?(File.join(path, "Gemfile"))
-          info "Running Ruby tests..."
-          cmd = "cd #{path} && bundle exec rspec"
-          system(cmd)
-        else
-          error "No test framework detected"
+        runner = detect_test_runner(path)
+        unless runner
+          error "No supported test configuration found in #{path}."
+          info "Add tests via `kiket extensions scaffold` or define a package.json/pyproject/Gemfile test target."
           exit 1
         end
+
+        info "Running #{runner[:label]}..."
+        command = runner[:command]
+
+        if options[:watch]
+          if runner[:watch_command]
+            command = runner[:watch_command]
+          elsif runner[:watch_flag]
+            command = "#{command} #{runner[:watch_flag]}"
+          else
+            warning "Watch mode is not available for #{runner[:label]} – running once instead."
+          end
+        end
+
+        success = run_shell(command)
+        exit 1 unless success
       rescue StandardError => e
         handle_error(e)
       end
@@ -685,6 +689,149 @@ module Kiket
       end
 
       private
+
+      no_commands do
+        def detect_test_runner(path)
+          detect_python_test_runner(path) ||
+            detect_node_test_runner(path) ||
+            detect_ruby_test_runner(path)
+        end
+
+        def detect_python_test_runner(path)
+          poetry = poetry_project?(path)
+          pipenv = pipenv_project?(path)
+          return nil unless poetry || pipenv || File.exist?(File.join(path, "requirements.txt")) || File.exist?(File.join(path, "pyproject.toml"))
+
+          command = [
+            "cd #{path} &&",
+            if poetry
+              "poetry run pytest"
+            elsif pipenv
+              "pipenv run pytest"
+            else
+              "python -m pytest"
+            end
+          ].join(" ")
+
+          {
+            label: "pytest",
+            command: command,
+            watch_command: python_watch_command(path, poetry: poetry, pipenv: pipenv)
+          }
+        end
+
+        def detect_node_test_runner(path)
+          package_json_path = File.join(path, "package.json")
+          return nil unless File.exist?(package_json_path)
+
+          pkg = JSON.parse(File.read(package_json_path))
+          scripts = pkg["scripts"] || {}
+          unless scripts.key?("test")
+            warning "package.json found but no test script defined. Add `\"test\": \"jest\"` (or similar) to run CLI tests."
+            return nil
+          end
+
+          manager = detect_node_package_manager(path)
+          base_command = [
+            "cd #{path} &&",
+            case manager
+            when :pnpm then "pnpm test"
+            when :yarn then "yarn test"
+            else "npm test"
+            end
+          ].join(" ")
+
+          watch_command =
+            case manager
+            when :pnpm
+              "#{base_command} --watch"
+            when :yarn
+              "#{base_command} --watch"
+            else
+              "#{base_command} -- --watch"
+            end
+
+          {
+            label: "Node test/#{manager}",
+            command: base_command,
+            watch_command: watch_command
+          }
+        rescue JSON::ParserError => e
+          warning "Unable to parse package.json: #{e.message}"
+          nil
+        end
+
+        def detect_ruby_test_runner(path)
+          gemfile = File.join(path, "Gemfile")
+          return nil unless File.exist?(gemfile)
+
+          {
+            label: "RSpec",
+            command: "cd #{path} && bundle exec rspec"
+          }
+        end
+
+        def python_watch_command(path, poetry:, pipenv:)
+          return nil unless command_available?("ptw")
+
+          base =
+            if poetry
+              "poetry run ptw"
+            elsif pipenv
+              "pipenv run ptw"
+            else
+              "ptw"
+            end
+
+          "cd #{path} && #{base}"
+        end
+
+        def detect_node_package_manager(path)
+          return :pnpm if File.exist?(File.join(path, "pnpm-lock.yaml"))
+          return :yarn if File.exist?(File.join(path, "yarn.lock"))
+          return :npm if File.exist?(File.join(path, "package-lock.json"))
+
+          package_manager_field = package_manager_from_package_json(path)
+          return :pnpm if package_manager_field&.include?("pnpm")
+          return :yarn if package_manager_field&.include?("yarn")
+
+          :npm
+        end
+
+        def package_manager_from_package_json(path)
+          package_json_path = File.join(path, "package.json")
+          return nil unless File.exist?(package_json_path)
+
+          pkg = JSON.parse(File.read(package_json_path))
+          pkg["packageManager"]
+        rescue JSON::ParserError
+          nil
+        end
+
+        def poetry_project?(path)
+          File.exist?(File.join(path, "poetry.lock")) || file_contains?(File.join(path, "pyproject.toml"), "[tool.poetry]")
+        end
+
+        def pipenv_project?(path)
+          File.exist?(File.join(path, "Pipfile")) || File.exist?(File.join(path, "Pipfile.lock"))
+        end
+
+        def file_contains?(path, needle)
+          return false unless File.exist?(path)
+
+          File.read(path).include?(needle)
+        rescue Errno::ENOENT
+          false
+        end
+
+        def command_available?(command)
+          system("command -v #{command} >/dev/null 2>&1")
+        end
+
+        def run_shell(command)
+          system(command)
+        end
+      end
 
       def generate_manifest(dir, name, template_type, extension_id: nil)
         manifest_dir = File.join(dir, ".kiket")
