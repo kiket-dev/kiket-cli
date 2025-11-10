@@ -1,0 +1,12 @@
+model_version: 1.0
+workflow:
+  name: Sample Flow
+states:
+  todo:
+    type: initial
+  done:
+    type: final
+transitions:
+  - from: todo
+    to: done
+    name: Finish

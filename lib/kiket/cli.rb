@@ -6,6 +6,7 @@ require_relative "commands/configure"
 require_relative "commands/marketplace"
 require_relative "commands/extensions"
 require_relative "commands/workflows"
+require_relative "commands/definitions"
 require_relative "commands/secrets"
 require_relative "commands/analytics"
 require_relative "commands/agents"
@@ -37,6 +38,9 @@ module Kiket
 
     desc "workflows SUBCOMMAND ...ARGS", "Workflow validation and testing"
     subcommand "workflows", Commands::Workflows
+
+    desc "definitions SUBCOMMAND ...ARGS", "Definition repository testing"
+    subcommand "definitions", Commands::Definitions
 
     desc "secrets SUBCOMMAND ...ARGS", "Secret provisioning and rotation"
     subcommand "secrets", Commands::Secrets

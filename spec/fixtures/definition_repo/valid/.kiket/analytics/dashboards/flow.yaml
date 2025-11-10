@@ -1,0 +1,8 @@
+dashboard:
+  id: flow-health
+  name: Flow Health
+  widgets:
+    - id: throughput
+      type: kpi
+      title: Throughput
+      query: fct_throughput

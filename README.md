@@ -102,6 +102,12 @@ kiket workflows visualize WORKFLOW              # Generate diagram
 kiket workflows diff --against BRANCH           # Compare workflows
 ```
 
+### Definitions Commands
+
+```bash
+kiket definitions lint [PATH]                   # Lint workflows, dashboards, and dbt assets
+```
+
 ### Secrets Commands
 
 ```bash
