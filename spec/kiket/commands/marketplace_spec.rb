@@ -130,6 +130,35 @@ RSpec.describe Kiket::Commands::Marketplace do
     end
   end
 
+  describe "#dbt" do
+    it "renders installation dbt runs" do
+      runs = {
+        "runs" => [
+          {
+            "id" => 42,
+            "status" => "success",
+            "command" => "run",
+            "queued_at" => "2025-11-10T10:00:00Z",
+            "duration_ms" => 15000,
+            "message" => "dbt run completed"
+          }
+        ]
+      }
+
+      expect(client).to receive(:get)
+        .with("/api/v1/marketplace/installations/123/dbt_runs", params: { limit: 10 })
+        .and_return(runs)
+
+      output = capture_stdout do
+        described_class.start(%w[dbt 123])
+      end
+
+      expect(output).to include("42")
+      expect(output).to include("success")
+      expect(output).to include("dbt run completed")
+    end
+  end
+
   describe "#onboarding_wizard" do
     it "creates a blueprint scaffold from the template" do
       Dir.mktmpdir do |dir|

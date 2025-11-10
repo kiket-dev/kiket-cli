@@ -5,6 +5,7 @@ require "yaml"
 require "json"
 require "fileutils"
 require "pathname"
+require "time"
 
 module Kiket
   module Commands
@@ -541,6 +542,48 @@ module Kiket
           error "Unknown telemetry action '#{action}'. Supported: report"
           exit 1
         end
+      end
+
+      option :limit, type: :numeric, default: 10, desc: "Number of runs to display (default: 10)"
+      option :status, type: :string, desc: "Filter runs by status (queued, running, success, failure, skipped)"
+      desc "dbt INSTALLATION", "Show dbt run diagnostics for an installation"
+      def dbt(installation_id)
+        ensure_authenticated!
+        if installation_id.to_s.strip.empty?
+          error "Installation ID required. Usage: kiket marketplace dbt <installation_id>"
+          exit 1
+        end
+
+        params = {}
+        limit = options[:limit].to_i
+        params[:limit] = limit if limit.positive?
+        params[:status] = options[:status] if options[:status]
+
+        spinner = spinner("Fetching dbt runs...")
+        spinner.auto_spin
+        response = client.get("/api/v1/marketplace/installations/#{installation_id}/dbt_runs", params: params)
+        runs = Array(response["runs"])
+        spinner.success("Found #{runs.size} run#{'s' unless runs.size == 1}")
+
+        if runs.empty?
+          info "No dbt runs recorded for installation #{installation_id}."
+          return
+        end
+
+        dataset = runs.map do |run|
+          {
+            id: run["id"],
+            status: run["status"],
+            command: run["command"],
+            queued_at: format_timestamp(run["queued_at"]),
+            duration: format_duration(run["duration_ms"]),
+            message: summarize_message(run)
+          }
+        end
+
+        output_data(dataset, headers: %i[id status command queued_at duration message])
+      rescue StandardError => e
+        handle_error(e)
       end
 
       desc "onboarding_wizard", "Generate a local blueprint from the marketplace template"
@@ -1183,6 +1226,31 @@ module Kiket
 
       def log_info(message)
         puts pastel.blue("ℹ #{message}")
+      end
+
+      def format_duration(ms)
+        return "—" if ms.nil?
+
+        seconds = ms.to_f / 1000.0
+        return "#{seconds.round(2)}s" if seconds < 60
+
+        minutes = seconds / 60.0
+        "#{minutes.round(1)}m"
+      end
+
+      def format_timestamp(value)
+        return "—" if value.nil? || value.to_s.strip.empty?
+
+        Time.parse(value).utc.iso8601
+      rescue ArgumentError
+        value
+      end
+
+      def summarize_message(run)
+        message = run["error_message"]
+        message = run["message"] if message.nil? || message.to_s.strip.empty?
+        message = run.dig("metadata", "message") if (message.nil? || message.to_s.strip.empty?) && run["metadata"].is_a?(Hash)
+        message.to_s.strip.empty? ? "—" : message.to_s
       end
 
       def sync_installation_secrets(installation_id)
