@@ -44,6 +44,20 @@ module Kiket
         # Secret health
         checks.concat(check_secrets(org, options[:product]))
 
+        # Diagnostics
+        if needs_diagnostics?
+          diagnostics = diagnostics_data(org)
+          if diagnostics.nil?
+            checks << diagnostics_warning
+          else
+            if options[:extensions] || options[:product]
+              checks.concat(extension_diagnostic_checks(diagnostics[:extensions]))
+            end
+
+            checks.concat(definition_diagnostic_checks(diagnostics[:definitions])) if options[:workflows]
+          end
+        end
+
         # Display results
         display_check_results(checks)
 
@@ -256,6 +270,104 @@ module Kiket
         end
 
         checks
+      end
+
+      def needs_diagnostics?
+        options[:extensions] || options[:workflows] || options[:product]
+      end
+
+      def diagnostics_data(org)
+        return @diagnostics_data if defined?(@diagnostics_data)
+
+        response = client.get("/api/v1/diagnostics", params: { organization_id: org })
+        @diagnostics_data = {
+          extensions: response["extensions"] || [],
+          definitions: response["definitions"] || []
+        }
+      rescue StandardError => e
+        @diagnostics_error = e
+        @diagnostics_data = nil
+      end
+
+      def diagnostics_fetch_error
+        @diagnostics_error
+      end
+
+      def diagnostics_warning
+        {
+          category: "Diagnostics",
+          name: "Summary",
+          status: :warning,
+          message: "Unable to load diagnostics: #{diagnostics_fetch_error&.message || 'unknown error'}"
+        }
+      end
+
+      def extension_diagnostic_checks(entries)
+        return [] if entries.blank?
+
+        required_failures = entries.count { |entry| entry["required"] }
+        summary_status = required_failures.positive? ? :error : :warning
+
+        checks = [{
+          category: "Diagnostics",
+          name: "Extensions",
+          status: summary_status,
+          message: "#{entries.count} failing invocation(s) detected (#{required_failures} required)"
+        }]
+
+        entries.first(5).each do |entry|
+          checks << {
+            category: "Diagnostics",
+            name: entry["extension_name"] || entry["extension_id"] || "Extension #{entry["id"]}",
+            status: entry["status"] == "failed" ? :error : :warning,
+            message: extension_diag_message(entry)
+          }
+        end
+
+        checks
+      end
+
+      def extension_diag_message(entry)
+        parts = []
+        parts << (entry["error"] || entry["status"])
+        if entry["project_name"]
+          parts << "Project: #{entry["project_name"]}"
+        elsif entry["project_id"]
+          parts << "Project ##{entry["project_id"]}"
+        end
+        parts << entry["recommendation"] if entry["recommendation"]
+        parts << "More: #{entry["admin_path"]}" if entry["admin_path"]
+        parts.compact.join(" — ")
+      end
+
+      def definition_diagnostic_checks(entries)
+        return [] if entries.blank?
+
+        checks = [{
+          category: "Diagnostics",
+          name: "Definitions",
+          status: :error,
+          message: "#{entries.count} repository sync failure(s) detected"
+        }]
+
+        entries.first(5).each do |entry|
+          checks << {
+            category: "Diagnostics",
+            name: entry["project_name"] || "Project ##{entry["project_id"]}",
+            status: :error,
+            message: definition_diag_message(entry)
+          }
+        end
+
+        checks
+      end
+
+      def definition_diag_message(entry)
+        parts = []
+        parts << entry["error"] if entry["error"]
+        parts << entry["recommendation"] if entry["recommendation"]
+        parts << "More: #{entry["admin_path"]}" if entry["admin_path"]
+        parts.compact.join(" — ")
       end
 
       def display_check_results(checks)
