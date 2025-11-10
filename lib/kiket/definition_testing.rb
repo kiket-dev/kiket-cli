@@ -70,6 +70,10 @@ module Kiket
         data = load_yaml(file)
         return [data] if data.is_a?(Result) # error result
 
+        if data.is_a?(Hash) && data.key?("recipe")
+          return [info_result("workflows", file, "Skipped automation recipe definition")]
+        end
+
         results = []
 
         unless data.is_a?(Hash)
@@ -84,18 +88,37 @@ module Kiket
         results << error_result("workflows", file, "Missing workflow.name") if name.to_s.strip.empty?
 
         states = data["states"] || workflow["states"]
-        if states.nil? || !states.is_a?(Hash) || states.empty?
-          results << error_result("workflows", file, "Workflow must define at least one state")
-        else
-          states.each do |state_name, config|
-            unless config.is_a?(Hash)
-              results << error_result("workflows", file, "State '#{state_name}' must be a mapping")
-              next
-            end
+        case states
+        when Hash
+          if states.empty?
+            results << error_result("workflows", file, "Workflow must define at least one state")
+          else
+            states.each do |state_name, config|
+              unless config.is_a?(Hash)
+                results << error_result("workflows", file, "State '#{state_name}' must be a mapping")
+                next
+              end
 
-            type = config["type"]
-            results << error_result("workflows", file, "State '#{state_name}' missing type") if type.to_s.strip.empty?
+              type = config["type"]
+              results << error_result("workflows", file, "State '#{state_name}' missing type") if type.to_s.strip.empty?
+            end
           end
+        when Array
+          if states.empty?
+            results << error_result("workflows", file, "Workflow must define at least one state")
+          else
+            states.each_with_index do |state, idx|
+              unless state.is_a?(Hash)
+                results << error_result("workflows", file, "State ##{idx + 1} must be a mapping")
+                next
+              end
+
+              key = state["key"] || state["name"]
+              results << error_result("workflows", file, "State ##{idx + 1} missing key/name") if key.to_s.strip.empty?
+            end
+          end
+        else
+          results << error_result("workflows", file, "Workflow must define at least one state")
         end
 
         transitions = data["transitions"] || workflow["transitions"] || []

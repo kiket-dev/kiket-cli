@@ -6,10 +6,11 @@ module Kiket
   module Commands
     class Doctor < Base
       desc "run", "Run diagnostic health checks"
+      map "run" => :execute
       option :extensions, type: :boolean, desc: "Check extension health"
       option :workflows, type: :boolean, desc: "Check workflow health"
       option :product, type: :string, desc: "Product installation ID"
-      def run
+      def execute
         ensure_authenticated!
         org = organization
 
