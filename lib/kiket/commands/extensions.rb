@@ -230,13 +230,13 @@ module Kiket
         # Run SDK-specific linting
         if File.exist?(File.join(path, "requirements.txt"))
           info "Running Python linting..."
-          args = ["ruff", "check", "."]
+          args = [ "ruff", "check", "." ]
           args << "--fix" if options[:fix]
           system(*args, chdir: path)
         elsif File.exist?(File.join(path, "package.json"))
           info "Running TypeScript linting..."
-          args = ["npm", "run", "lint"]
-          args.concat(["--", "--fix"]) if options[:fix]
+          args = [ "npm", "run", "lint" ]
+          args.concat([ "--", "--fix" ]) if options[:fix]
           system(*args, chdir: path)
         end
       rescue StandardError => e
