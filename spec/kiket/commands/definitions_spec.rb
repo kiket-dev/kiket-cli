@@ -23,7 +23,7 @@ RSpec.describe Kiket::Commands::Definitions do
         FileUtils.cp_r(File.join(fixtures_path, "definition_repo", "valid", "."), dir)
 
         output = capture_stdout do
-          described_class.start(["lint", dir, "--skip-dbt-cli"])
+          described_class.start([ "lint", dir, "--skip-dbt-cli" ])
         end
 
         expect(output).to include("Workflow lint passed")
@@ -37,7 +37,7 @@ RSpec.describe Kiket::Commands::Definitions do
         FileUtils.cp_r(File.join(fixtures_path, "definition_repo", "invalid", "."), dir)
 
         expect do
-          described_class.start(["lint", dir, "--fail-fast", "--dashboards", "false", "--dbt", "false"])
+          described_class.start([ "lint", dir, "--fail-fast", "--dashboards", "false", "--dbt", "false" ])
         end.to raise_error(SystemExit)
       end
     end

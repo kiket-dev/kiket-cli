@@ -34,18 +34,18 @@ module Kiket
       desc "get KEY", "Get a configuration value"
       def get(key)
         value = case key
-                when "api_url", "api_base_url"
+        when "api_url", "api_base_url"
                   config.api_base_url
-                when "default_org", "org"
+        when "default_org", "org"
                   config.default_org
-                when "output_format", "format"
+        when "output_format", "format"
                   config.output_format
-                when "verbose"
+        when "verbose"
                   config.verbose
-                else
+        else
                   error "Unknown configuration key: #{key}"
                   exit 1
-                end
+        end
 
         puts value || "(not set)"
       rescue StandardError => e

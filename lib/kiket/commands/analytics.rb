@@ -60,7 +60,7 @@ module Kiket
 
           table = TTY::Table.new(headers, rows)
           puts pastel.bold("Totals")
-          puts table.render(:unicode, padding: [0, 1])
+          puts table.render(:unicode, padding: [ 0, 1 ])
 
           unless series.empty?
             puts "\n#{pastel.bold("Daily Breakdown")}"
@@ -159,11 +159,14 @@ module Kiket
         params[:product_installation] = options[:product] if options[:product]
 
         response = client.post("/api/v1/analytics/dashboard/token", body: params)
-        dashboard_url = "#{config.api_base_url}/analytics/dashboard?token=#{response["token"]}"
+        token = response["token"]
+        base_url = config.api_base_url
+        dashboard_url = "#{base_url}/analytics/dashboard?token=#{token}"
 
         info "Opening dashboard in browser..."
 
         # Try to open in default browser
+        # Note: URL is passed as separate argument to prevent command injection
         require "open3"
         case RbConfig::CONFIG["host_os"]
         when /darwin/

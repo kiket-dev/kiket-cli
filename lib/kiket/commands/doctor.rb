@@ -112,10 +112,10 @@ module Kiket
         installation = response["installation"]
 
         status = case installation["status"]
-                 when "active" then :ok
-                 when "installing", "upgrading" then :warning
-                 else :error
-                 end
+        when "active" then :ok
+        when "installing", "upgrading" then :warning
+        else :error
+        end
 
         {
           category: "Product",
@@ -155,10 +155,10 @@ module Kiket
             response["extensions"].each do |ext|
               health_status = ext.dig("health", "status")
               status = case health_status
-                       when "healthy" then :ok
-                       when "degraded" then :warning
-                       else :error
-                       end
+              when "healthy" then :ok
+              when "degraded" then :warning
+              else :error
+              end
 
               checks << {
                 category: "Extensions",
@@ -308,12 +308,12 @@ module Kiket
         required_failures = entries.count { |entry| entry["required"] }
         summary_status = required_failures.positive? ? :error : :warning
 
-        checks = [{
+        checks = [ {
           category: "Diagnostics",
           name: "Extensions",
           status: summary_status,
           message: "#{entries.count} failing invocation(s) detected (#{required_failures} required)"
-        }]
+        } ]
 
         entries.first(5).each do |entry|
           checks << {
@@ -343,12 +343,12 @@ module Kiket
       def definition_diagnostic_checks(entries)
         return [] if entries.blank?
 
-        checks = [{
+        checks = [ {
           category: "Diagnostics",
           name: "Definitions",
           status: :error,
           message: "#{entries.count} repository sync failure(s) detected"
-        }]
+        } ]
 
         entries.first(5).each do |entry|
           checks << {
@@ -379,10 +379,10 @@ module Kiket
 
           category_checks.each do |check|
             icon = case check[:status]
-                   when :ok then pastel.green("✓")
-                   when :warning then pastel.yellow("⚠")
-                   when :error then pastel.red("✗")
-                   end
+            when :ok then pastel.green("✓")
+            when :warning then pastel.yellow("⚠")
+            when :error then pastel.red("✗")
+            end
 
             puts "  #{icon} #{check[:name]}: #{check[:message]}"
           end

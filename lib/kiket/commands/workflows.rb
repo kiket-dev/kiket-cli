@@ -123,9 +123,9 @@ module Kiket
             # If scenario file provided, use it
             test_payload = if options[:scenario]
                              YAML.load_file(options[:scenario])
-                           else
+            else
                              generate_test_payload(YAML.safe_load(workflow_content))
-                           end
+            end
 
             # Send to API for validation
             response = client.post("/api/v1/workflows/validate",
@@ -254,8 +254,7 @@ module Kiket
         spinner.auto_spin
 
         require "open3"
-        cmd = "git -C #{path} diff #{options[:against]} --name-only -- '*.yaml' '*.yml'"
-        stdout, stderr, status = Open3.capture3(cmd)
+        stdout, stderr, status = Open3.capture3("git", "-C", path, "diff", options[:against], "--name-only", "--", "*.yaml", "*.yml")
 
         unless status.success?
           spinner.error
@@ -276,8 +275,7 @@ module Kiket
         puts "\n#{pastel.bold("Changed Workflows:")}"
         changed_files.each do |file|
           # Get diff stats
-          cmd = "git -C #{path} diff #{options[:against]} --stat -- #{file}"
-          stats, = Open3.capture2(cmd)
+          stats, = Open3.capture2("git", "-C", path, "diff", options[:against], "--stat", "--", file)
 
           puts "  #{pastel.yellow("~")} #{file}"
           puts "    #{stats.strip}" if verbose?
@@ -291,9 +289,9 @@ module Kiket
       def generate_schema(path = ".")
         workflow_files = if File.directory?(path)
                            Dir.glob(File.join(path, "**/*.{yml,yaml}"))
-                         else
-                           [path]
-                         end
+        else
+                           [ path ]
+        end
         workflow_files = workflow_files.select { |file| File.file?(file) }
 
         if workflow_files.empty?

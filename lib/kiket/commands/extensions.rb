@@ -230,14 +230,14 @@ module Kiket
         # Run SDK-specific linting
         if File.exist?(File.join(path, "requirements.txt"))
           info "Running Python linting..."
-          cmd = "cd #{path} && ruff check ."
-          cmd += " --fix" if options[:fix]
-          system(cmd)
+          args = ["ruff", "check", "."]
+          args << "--fix" if options[:fix]
+          system(*args, chdir: path)
         elsif File.exist?(File.join(path, "package.json"))
           info "Running TypeScript linting..."
-          cmd = "cd #{path} && npm run lint"
-          cmd += " -- --fix" if options[:fix]
-          system(cmd)
+          args = ["npm", "run", "lint"]
+          args.concat(["--", "--fix"]) if options[:fix]
+          system(*args, chdir: path)
         end
       rescue StandardError => e
         handle_error(e)
@@ -320,7 +320,7 @@ module Kiket
         end
 
         # Run lint
-        invoke :lint, [path]
+        invoke :lint, [ path ]
 
         # Check for git repository
         unless Dir.exist?(File.join(path, ".git"))
@@ -331,7 +331,7 @@ module Kiket
 
         # Check for remote
         require "open3"
-        stdout, _, status = Open3.capture3("git -C #{path} remote get-url origin")
+        stdout, _, status = Open3.capture3("git", "-C", path, "remote", "get-url", "origin")
 
         unless status.success?
           error "No git remote 'origin' configured"
@@ -348,7 +348,7 @@ module Kiket
         end
 
         # Check for uncommitted changes
-        stdout, = Open3.capture3("git -C #{path} status --porcelain")
+        stdout, = Open3.capture3("git", "-C", path, "status", "--porcelain")
 
         if stdout.strip.length.positive?
           warning "Uncommitted changes detected"
@@ -408,26 +408,26 @@ module Kiket
         end
 
         # Validate extension
-        invoke :validate, [path]
+        invoke :validate, [ path ]
 
         # Run tests
         info "Running tests before publish..."
-        invoke :test, [path]
+        invoke :test, [ path ]
 
         require "yaml"
         require "open3"
         manifest = YAML.load_file(manifest_path)
 
         # Get git information
-        remote_url, = Open3.capture2("git -C #{path} remote get-url origin")
+        remote_url, = Open3.capture2("git", "-C", path, "remote", "get-url", "origin")
         remote_url = remote_url.strip
 
-        current_branch, = Open3.capture2("git -C #{path} rev-parse --abbrev-ref HEAD")
+        current_branch, = Open3.capture2("git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD")
         current_branch = current_branch.strip
 
         git_ref = options[:ref] || current_branch
 
-        commit_sha, = Open3.capture2("git -C #{path} rev-parse #{git_ref}")
+        commit_sha, = Open3.capture2("git", "-C", path, "rev-parse", git_ref)
         commit_sha = commit_sha.strip[0..7]
 
         puts pastel.bold("\nPublish Extension:")
@@ -488,9 +488,9 @@ module Kiket
 
             checks << if manifest.dig("extension", "id")
                         { name: "Extension ID", status: :ok, message: manifest.dig("extension", "id") }
-                      else
+            else
                         { name: "Extension ID", status: :error, message: "Missing" }
-                      end
+            end
           rescue StandardError => e
             checks << { name: "Manifest syntax", status: :error, message: e.message }
           end
@@ -520,24 +520,24 @@ module Kiket
                      Dir.glob("#{path}/{test,spec,tests}/**/*_spec.{py,rb,js,ts}")
         checks << if test_files.any?
                     { name: "Tests", status: :ok, message: "#{test_files.size} test files found" }
-                  else
+        else
                     { name: "Tests", status: :warning, message: "No test files found" }
-                  end
+        end
 
         # Check for documentation
         checks << if File.exist?(File.join(path, "README.md"))
                     { name: "Documentation", status: :ok, message: "README.md present" }
-                  else
+        else
                     { name: "Documentation", status: :warning, message: "No README.md" }
-                  end
+        end
 
         # Display results
         checks.each do |check|
           icon = case check[:status]
-                 when :ok then pastel.green("✓")
-                 when :warning then pastel.yellow("⚠")
-                 when :error then pastel.red("✗")
-                 end
+          when :ok then pastel.green("✓")
+          when :warning then pastel.yellow("⚠")
+          when :error then pastel.red("✗")
+          end
           puts "#{icon} #{check[:name]}: #{check[:message]}"
         end
 
@@ -590,7 +590,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([row], headers: row.keys)
+        output_data([ row ], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -609,7 +609,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([row], headers: row.keys)
+        output_data([ row ], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -628,7 +628,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([row], headers: row.keys)
+        output_data([ row ], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -823,7 +823,7 @@ module Kiket
         end
 
         def command_available?(command)
-          system("command -v #{command} >/dev/null 2>&1")
+          system("command", "-v", command, out: File::NULL, err: File::NULL)
         end
 
         def run_shell(command)
@@ -851,7 +851,7 @@ module Kiket
             "retries" => 3
           },
           "hooks" => generate_hooks_for_template(template_type),
-          "permissions" => ["read:issues", "write:issues"],
+          "permissions" => [ "read:issues", "write:issues" ],
           "configuration" => {
             "fields" => []
           }
@@ -863,9 +863,9 @@ module Kiket
       def generate_hooks_for_template(template_type)
         case template_type
         when "webhook_guard"
-          ["before_transition"]
+          [ "before_transition" ]
         when "outbound_integration"
-          ["after_transition"]
+          [ "after_transition" ]
         when "notification_pack"
           %w[after_transition issue_created issue_updated]
         else
@@ -1427,15 +1427,15 @@ module Kiket
           require "multi_json"
         payload = if present?(opts[:payload])
                       MultiJson.load(File.read(opts[:payload]))
-                    elsif present?(opts[:template])
+        elsif present?(opts[:template])
                       template = REPLAY_TEMPLATES[opts[:template]]
                       raise ArgumentError, "Unknown template #{opts[:template]}" unless template
                       MultiJson.load(MultiJson.dump(template))
-                    else
+        else
                       input = STDIN.read
                       raise ArgumentError, "No payload provided (pass --payload or pipe data)" if input.strip.empty?
                       MultiJson.load(input)
-                    end
+        end
 
           secrets = {}
           if present?(opts[:env_file])
@@ -1464,10 +1464,10 @@ module Kiket
           http.use_ssl = uri.scheme == "https"
           http.read_timeout = 10
           klass = case method.to_s.upcase
-                  when "POST" then Net::HTTP::Post
-                  when "PUT" then Net::HTTP::Put
-                  else Net::HTTP::Post
-                  end
+          when "POST" then Net::HTTP::Post
+          when "PUT" then Net::HTTP::Put
+          else Net::HTTP::Post
+          end
           request = klass.new(uri.request_uri)
           headers.each { |k, v| request[k] = v }
           request.body = body

@@ -5,8 +5,8 @@ require_relative "lib/kiket/version"
 Gem::Specification.new do |spec|
   spec.name = "kiket-cli"
   spec.version = Kiket::VERSION
-  spec.authors = ["Kiket Team"]
-  spec.email = ["team@kiket.dev"]
+  spec.authors = [ "Kiket Team" ]
+  spec.email = [ "team@kiket.dev" ]
 
   spec.summary = "Official CLI for Kiket workflow automation platform"
   spec.description = "Command-line interface for managing Kiket marketplace products, extensions, " \
@@ -23,8 +23,8 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir.glob("{bin,lib,exe}/**/*") + %w[LICENSE README.md]
   spec.bindir = "bin"
-  spec.executables = ["kiket"]
-  spec.require_paths = ["lib"]
+  spec.executables = [ "kiket" ]
+  spec.require_paths = [ "lib" ]
 
   # CLI framework
   spec.add_dependency "thor", "~> 1.3"

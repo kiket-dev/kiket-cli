@@ -32,7 +32,7 @@ RSpec.describe Kiket::Commands::Extensions do
         response
       end
 
-      described_class.start(["replay", "--payload", file.path, "--url", "http://localhost:9999/webhook"])
+      described_class.start([ "replay", "--payload", file.path, "--url", "http://localhost:9999/webhook" ])
       expect(received["event"]).to eq("workflow.before_transition")
     ensure
       file.unlink
@@ -68,11 +68,11 @@ RSpec.describe Kiket::Commands::Extensions do
       env_path = File.join(tmp_dir, ".env.pull")
 
       expect(client).to receive(:get).with("/api/v1/extensions/com.example/slack/secrets")
-                                     .and_return([{ "key" => "API_TOKEN" }])
+                                     .and_return([ { "key" => "API_TOKEN" } ])
       expect(client).to receive(:get).with("/api/v1/extensions/com.example/slack/secrets/API_TOKEN")
                                      .and_return({ "key" => "API_TOKEN", "value" => "abc123" })
 
-      described_class.start(["secrets:pull", "com.example/slack", "--output", env_path])
+      described_class.start([ "secrets:pull", "com.example/slack", "--output", env_path ])
 
       contents = File.read(env_path)
       expect(contents).to include("API_TOKEN=abc123")
@@ -88,7 +88,7 @@ RSpec.describe Kiket::Commands::Extensions do
       expect(client).to receive(:post).with("/api/v1/extensions/com.example/slack/secrets",
                                             body: { secret: { key: "API_TOKEN", value: "xyz" } })
 
-      described_class.start(["secrets:push", "com.example/slack", "--env-file", tmp.path])
+      described_class.start([ "secrets:push", "com.example/slack", "--env-file", tmp.path ])
     ensure
       tmp.unlink
     end
@@ -108,7 +108,7 @@ RSpec.describe Kiket::Commands::Extensions do
       allow_any_instance_of(described_class).to receive(:command_available?).and_return(false)
       expect_any_instance_of(described_class).to receive(:run_shell).with(/poetry run pytest/).and_return(true)
 
-      described_class.start(["test", tmp_dir])
+      described_class.start([ "test", tmp_dir ])
     end
 
     it "runs npm test with watch flag when package.json exists" do
@@ -117,7 +117,7 @@ RSpec.describe Kiket::Commands::Extensions do
 
       expect_any_instance_of(described_class).to receive(:run_shell).with(/npm test -- --watch/).and_return(true)
 
-      described_class.start(["test", tmp_dir, "--watch"])
+      described_class.start([ "test", tmp_dir, "--watch" ])
     end
   end
 end

@@ -22,7 +22,7 @@ RSpec.describe Kiket::Commands::Extensions do
     before { config.api_token = "token" }
 
     it "calls the workspace API and prints rows" do
-      response = { "data" => [{ "id" => 1, "email" => "demo@example.com" }] }
+      response = { "data" => [ { "id" => 1, "email" => "demo@example.com" } ] }
       expect(client).to receive(:get).with(
         "/api/v1/custom_data/com.example/records",
         params: hash_including(project_id: 42, limit: 25)

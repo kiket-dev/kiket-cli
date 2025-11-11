@@ -49,7 +49,7 @@ module Kiket
       no_commands do
         def format_endpoints(endpoints)
           Array(endpoints).map do |endpoint|
-            [endpoint["name"], endpoint["type"]].compact.join(" (") + (endpoint["type"] ? ")" : "")
+            [ endpoint["name"], endpoint["type"] ].compact.join(" (") + (endpoint["type"] ? ")" : "")
           end.join(", ")
         end
       end

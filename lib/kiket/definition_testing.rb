@@ -59,7 +59,7 @@ module Kiket
 
       def lint
         files = Dir.glob(File.join(@root, "**", ".kiket", "workflows", "**", "*.y{a}ml"))
-        return [info_result("workflows", nil, "No workflow files found")] if files.empty?
+        return [ info_result("workflows", nil, "No workflow files found") ] if files.empty?
 
         files.flat_map { |file| lint_file(file) }
       end
@@ -68,16 +68,16 @@ module Kiket
 
       def lint_file(file)
         data = load_yaml(file)
-        return [data] if data.is_a?(Result) # error result
+        return [ data ] if data.is_a?(Result) # error result
 
         if data.is_a?(Hash) && data.key?("recipe")
-          return [info_result("workflows", file, "Skipped automation recipe definition")]
+          return [ info_result("workflows", file, "Skipped automation recipe definition") ]
         end
 
         results = []
 
         unless data.is_a?(Hash)
-          return [error_result("workflows", file, "YAML document must be an object")]
+          return [ error_result("workflows", file, "YAML document must be an object") ]
         end
 
         model_version = data["model_version"] || data.dig("workflow", "model_version")
@@ -138,7 +138,7 @@ module Kiket
           end
         end
 
-        results.empty? ? [success_result("workflows", file, "Workflow lint passed")] : results
+        results.empty? ? [ success_result("workflows", file, "Workflow lint passed") ] : results
       end
 
       def load_yaml(file)
@@ -171,7 +171,7 @@ module Kiket
 
       def lint
         files = Dir.glob(File.join(@root, "**", ".kiket", "analytics", "dashboards", "**", "*.y{a}ml"))
-        return [info_result("dashboards", nil, "No dashboard definitions found")] if files.empty?
+        return [ info_result("dashboards", nil, "No dashboard definitions found") ] if files.empty?
 
         files.flat_map { |file| lint_file(file) }
       end
@@ -180,11 +180,11 @@ module Kiket
 
       def lint_file(file)
         data = load_yaml(file)
-        return [data] if data.is_a?(Result)
+        return [ data ] if data.is_a?(Result)
 
         dashboard = data["dashboard"]
         unless dashboard.is_a?(Hash)
-          return [error_result("dashboards", file, "Missing dashboard root key")]
+          return [ error_result("dashboards", file, "Missing dashboard root key") ]
         end
 
         results = []
@@ -217,7 +217,7 @@ module Kiket
           results << error_result("dashboards", file, "dashboard.alerts must be an array")
         end
 
-        results.empty? ? [success_result("dashboards", file, "Dashboard lint passed")] : results
+        results.empty? ? [ success_result("dashboards", file, "Dashboard lint passed") ] : results
       end
 
       def load_yaml(file)
@@ -265,21 +265,21 @@ module Kiket
           results << info_result("dbt", nil, "Skipped dbt CLI run (no analytics/dbt project found)")
         end
 
-        results.empty? ? [success_result("dbt", @project_path, "dbt lint passed")] : results
+        results.empty? ? [ success_result("dbt", @project_path, "dbt lint passed") ] : results
       end
 
       private
 
       def lint_exposure_file(file)
         data = load_yaml(file)
-        return [data] if data.is_a?(Result)
+        return [ data ] if data.is_a?(Result)
 
         results = []
         exposures = data["exposures"]
         return [] unless exposures # ignore non-exposure files
 
         unless exposures.is_a?(Array)
-          return [error_result("dbt", file, "exposures must be an array")]
+          return [ error_result("dbt", file, "exposures must be an array") ]
         end
 
         exposures.each do |exposure|
@@ -303,24 +303,24 @@ module Kiket
       end
 
       def run_dbt_parse
-        return [info_result("dbt", @project_path, "dbt command not available; skipping parse run")] unless dbt_available?
-        return [error_result("dbt", @project_path, "dbt project path #{@project_path} not found")] unless Dir.exist?(@project_path)
+        return [ info_result("dbt", @project_path, "dbt command not available; skipping parse run") ] unless dbt_available?
+        return [ error_result("dbt", @project_path, "dbt project path #{@project_path} not found") ] unless Dir.exist?(@project_path)
 
         Dir.chdir(@project_path) do
           cmd = %w[dbt parse]
-          cmd += ["--project-dir", @project_path]
+          cmd += [ "--project-dir", @project_path ]
           profiles_dir = File.join(@project_path, "profiles")
-          cmd += ["--profiles-dir", profiles_dir] if Dir.exist?(profiles_dir)
+          cmd += [ "--profiles-dir", profiles_dir ] if Dir.exist?(profiles_dir)
 
           stdout, stderr, status = Open3.capture3(*cmd)
           unless status.success?
-            return [error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr)]
+            return [ error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr) ]
           end
         end
 
-        [success_result("dbt", @project_path, "dbt parse succeeded")]
+        [ success_result("dbt", @project_path, "dbt parse succeeded") ]
       rescue StandardError => e
-        [error_result("dbt", @project_path, "dbt parse error: #{e.message}")]
+        [ error_result("dbt", @project_path, "dbt parse error: #{e.message}") ]
       end
 
       def dbt_available?

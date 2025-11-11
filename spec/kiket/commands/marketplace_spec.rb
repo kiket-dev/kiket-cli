@@ -35,10 +35,10 @@ RSpec.describe Kiket::Commands::Marketplace do
               "name" => "Required Extension",
               "required" => true,
               "present" => true,
-              "secrets" => [{ "key" => "REQUIRED_TOKEN", "description" => "API token" }]
+              "secrets" => [ { "key" => "REQUIRED_TOKEN", "description" => "API token" } ]
             }
           ],
-          "missing_extension_secrets" => { "com.example.required" => ["REQUIRED_TOKEN"] },
+          "missing_extension_secrets" => { "com.example.required" => [ "REQUIRED_TOKEN" ] },
           "scaffolded_extension_secrets" => {}
         }
       }
@@ -58,7 +58,7 @@ RSpec.describe Kiket::Commands::Marketplace do
 
       post_calls = []
       allow(client).to receive(:post) do |path, payload|
-        post_calls << [path, payload]
+        post_calls << [ path, payload ]
         case path
         when "/api/v1/marketplace/installations"
           installation
@@ -77,7 +77,7 @@ RSpec.describe Kiket::Commands::Marketplace do
         env_file.write("REQUIRED_TOKEN=secret-value\n")
         env_file.flush
 
-        described_class.start(["install", "blueprint-1", "--env-file", env_file.path, "--non-interactive"])
+        described_class.start([ "install", "blueprint-1", "--env-file", env_file.path, "--non-interactive" ])
       ensure
         env_file.close
         env_file.unlink
@@ -203,7 +203,7 @@ RSpec.describe Kiket::Commands::Marketplace do
           expect(File).to exist(manifest_path)
           manifest = YAML.safe_load(File.read(manifest_path))
           expect(manifest["identifier"]).to eq("demo-kit")
-          expect(manifest.dig("metadata", "categories")).to eq(["ops"])
+          expect(manifest.dig("metadata", "categories")).to eq([ "ops" ])
 
           blueprint_path = File.join("config/marketplace/blueprints", "demo_kit.yml")
           expect(File).to exist(blueprint_path)
@@ -233,7 +233,7 @@ RSpec.describe Kiket::Commands::Marketplace do
 
           FileUtils.mkdir_p("config/marketplace/blueprints")
 
-          described_class.start(["import", source])
+          described_class.start([ "import", source ])
 
           destination = File.join("definitions", "sample-kit")
           expect(File).to exist(File.join(destination, "README.md"))

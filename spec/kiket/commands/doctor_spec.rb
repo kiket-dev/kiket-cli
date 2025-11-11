@@ -41,6 +41,6 @@ RSpec.describe Kiket::Commands::Doctor do
         "definitions" => []
       })
 
-    expect { described_class.start(["run", "--extensions"]) }.to output(/Reset token/).to_stdout
+    expect { described_class.start([ "run", "--extensions" ]) }.to output(/Reset token/).to_stdout
   end
 end

@@ -171,11 +171,11 @@ module Kiket
         puts pastel.bold("Changes:")
         preview["changes"].each do |change|
           icon = case change["type"]
-                 when "add" then pastel.green("+")
-                 when "remove" then pastel.red("-")
-                 when "modify" then pastel.yellow("~")
-                 else "•"
-                 end
+          when "add" then pastel.green("+")
+          when "remove" then pastel.red("-")
+          when "modify" then pastel.yellow("~")
+          else "•"
+          end
           puts "  #{icon} #{change["description"]}"
         end
         puts ""
@@ -826,9 +826,9 @@ module Kiket
         FileUtils.mkdir_p(File.dirname(manifest_path))
         manifest = if File.exist?(manifest_path)
                      YAML.safe_load(File.read(manifest_path)) || {}
-                   else
+        else
                      {}
-                   end
+        end
         manifest["identifier"] = identifier
         manifest["name"] = name
         manifest["description"] = description
@@ -925,7 +925,7 @@ module Kiket
 
         table = TTY::Table.new(%w[key name repository], rows)
         puts pastel.bold("Projects:")
-        puts table.render(:unicode, padding: [0, 1])
+        puts table.render(:unicode, padding: [ 0, 1 ])
         puts ""
       end
 
@@ -938,9 +938,9 @@ module Kiket
         extensions.each do |ext|
           status_label = if ext["present"]
                            pastel.green("installed")
-                         else
+          else
                            pastel.red("missing")
-                         end
+          end
 
           requirement = ext["required"] ? pastel.red("required") : pastel.dim("optional")
           puts "  • #{ext["extension_id"]} (#{ext["name"]}) - #{status_label}, #{requirement}"
@@ -957,9 +957,9 @@ module Kiket
             line += " (#{secret["description"]})" if present?(secret["description"])
             line += if missing.include?(key)
                       " #{pastel.yellow("[missing]")}"
-                    else
+            else
                       " #{pastel.green("[configured]")}"
-                    end
+            end
             line += pastel.cyan(" [placeholder]") if scaffolded.include?(key)
             puts line
           end
@@ -1048,7 +1048,7 @@ module Kiket
           "name" => name,
           "description" => description,
           "metadata" => {
-            "categories" => ["custom"],
+            "categories" => [ "custom" ],
             "published" => false,
             "pricing" => {
               "model" => "custom",

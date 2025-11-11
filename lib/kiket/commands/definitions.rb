@@ -63,11 +63,11 @@ module Kiket
         longest_category = results.map { |r| r.category.to_s.length }.max || 0
         results.each do |result|
           colorized = case result.severity
-                      when :error then pastel.red("✗")
-                      when :warning then pastel.yellow("⚠")
-                      when :success then pastel.green("✓")
-                      else pastel.dim("·")
-                      end
+          when :error then pastel.red("✗")
+          when :warning then pastel.yellow("⚠")
+          when :success then pastel.green("✓")
+          else pastel.dim("·")
+          end
           file_info = result.file ? " (#{relative_path(result.file)})" : ""
           puts format("%s %-#{longest_category}s %s%s",
                       colorized,
