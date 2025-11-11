@@ -557,22 +557,20 @@ module Kiket
         handle_error(e)
       end
 
-      desc "custom-data:list MODULE TABLE", "List custom data records via the extension API"
-      option :project, type: :numeric, required: true, desc: "Project ID"
+      desc "custom-data:list MODULE TABLE", "List custom data records via the workspace API"
+      option :project, type: :numeric, desc: "Project ID"
+      option :project_key, type: :string, desc: "Project key"
       option :limit, type: :numeric, default: 50, desc: "Maximum number of records to fetch"
       option :filters, type: :string, desc: "JSON filters (e.g. '{\"status\":\"open\"}')"
-      option :api_key, type: :string, desc: "Extension API key (defaults to KIKET_EXTENSION_API_KEY)"
       def custom_data_list(module_key, table)
-        params = {
-          project_id: options[:project],
-          limit: options[:limit]
-        }
+        ensure_authenticated!
+        params = custom_data_scope_params
+        params[:limit] = options[:limit]
         params[:filters] = parse_json_option(options[:filters], "--filters") if options[:filters]
 
         response = client.get(
-          "/api/v1/ext/custom_data/#{module_key}/#{table}",
-          params: params,
-          headers: extension_api_headers
+          "/api/v1/custom_data/#{module_key}/#{table}",
+          params: params
         )
 
         rows = response.fetch("data", [])
@@ -582,13 +580,13 @@ module Kiket
       end
 
       desc "custom-data:get MODULE TABLE ID", "Fetch a single custom data record"
-      option :project, type: :numeric, required: true, desc: "Project ID"
-      option :api_key, type: :string, desc: "Extension API key"
+      option :project, type: :numeric, desc: "Project ID"
+      option :project_key, type: :string, desc: "Project key"
       def custom_data_get(module_key, table, record_id)
+        ensure_authenticated!
         response = client.get(
-          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
-          params: { project_id: options[:project] },
-          headers: extension_api_headers
+          "/api/v1/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: custom_data_scope_params
         )
 
         row = response.fetch("data")
@@ -598,16 +596,16 @@ module Kiket
       end
 
       desc "custom-data:create MODULE TABLE", "Create a custom data record"
-      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :project, type: :numeric, desc: "Project ID"
+      option :project_key, type: :string, desc: "Project key"
       option :record, type: :string, required: true, desc: "JSON payload for the record"
-      option :api_key, type: :string, desc: "Extension API key"
       def custom_data_create(module_key, table)
+        ensure_authenticated!
         record = parse_json_option(options[:record], "--record")
         response = client.post(
-          "/api/v1/ext/custom_data/#{module_key}/#{table}",
-          params: { project_id: options[:project] },
-          body: { record: record },
-          headers: extension_api_headers
+          "/api/v1/custom_data/#{module_key}/#{table}",
+          params: custom_data_scope_params,
+          body: { record: record }
         )
 
         row = response.fetch("data")
@@ -617,16 +615,16 @@ module Kiket
       end
 
       desc "custom-data:update MODULE TABLE ID", "Update a custom data record"
-      option :project, type: :numeric, required: true, desc: "Project ID"
+      option :project, type: :numeric, desc: "Project ID"
+      option :project_key, type: :string, desc: "Project key"
       option :record, type: :string, required: true, desc: "JSON payload for updates"
-      option :api_key, type: :string, desc: "Extension API key"
       def custom_data_update(module_key, table, record_id)
+        ensure_authenticated!
         record = parse_json_option(options[:record], "--record")
         response = client.patch(
-          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
-          params: { project_id: options[:project] },
-          body: { record: record },
-          headers: extension_api_headers
+          "/api/v1/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: custom_data_scope_params,
+          body: { record: record }
         )
 
         row = response.fetch("data")
@@ -636,13 +634,13 @@ module Kiket
       end
 
       desc "custom-data:delete MODULE TABLE ID", "Delete a custom data record"
-      option :project, type: :numeric, required: true, desc: "Project ID"
-      option :api_key, type: :string, desc: "Extension API key"
+      option :project, type: :numeric, desc: "Project ID"
+      option :project_key, type: :string, desc: "Project key"
       def custom_data_delete(module_key, table, record_id)
+        ensure_authenticated!
         client.delete(
-          "/api/v1/ext/custom_data/#{module_key}/#{table}/#{record_id}",
-          params: { project_id: options[:project] },
-          headers: extension_api_headers
+          "/api/v1/custom_data/#{module_key}/#{table}/#{record_id}",
+          params: custom_data_scope_params
         )
         success "Deleted record #{record_id}"
       rescue StandardError => e
@@ -1339,14 +1337,19 @@ module Kiket
       end
 
       no_commands do
-        def extension_api_headers
-          api_key = options[:api_key] || ENV.fetch("KIKET_EXTENSION_API_KEY", nil)
-          if api_key.nil? || api_key.empty?
-            error "Missing extension API key. Provide --api-key or set KIKET_EXTENSION_API_KEY."
+        def custom_data_scope_params
+          project_id = options[:project]
+          project_key = options[:project_key]
+
+          if project_id.nil? && project_key.nil?
+            error "Provide --project or --project-key"
             exit 1
           end
 
-          { "X-Kiket-API-Key" => api_key }
+          params = {}
+          params[:project_id] = project_id if project_id
+          params[:project_key] = project_key if project_key
+          params
         end
 
         def parse_json_option(value, flag)

@@ -19,24 +19,25 @@ RSpec.describe Kiket::Commands::Extensions do
   end
 
   describe "custom-data:list" do
-    it "passes API key header and prints rows" do
+    before { config.api_token = "token" }
+
+    it "calls the workspace API and prints rows" do
       response = { "data" => [{ "id" => 1, "email" => "demo@example.com" }] }
       expect(client).to receive(:get).with(
-        "/api/v1/ext/custom_data/com.example/records",
-        params: hash_including(project_id: 42, limit: 25),
-        headers: hash_including("X-Kiket-API-Key" => "ext_key")
+        "/api/v1/custom_data/com.example/records",
+        params: hash_including(project_id: 42, limit: 25)
       ).and_return(response)
 
       output = capture_stdout do
-        described_class.start(%w[custom-data:list com.example records --project 42 --limit 25 --api-key ext_key])
+        described_class.start(%w[custom-data:list com.example records --project 42 --limit 25])
       end
 
       expect(output).to include("demo@example.com")
     end
 
-    it "requires API key" do
+    it "requires project scope" do
       expect do
-        described_class.start(%w[custom-data:list com.example records --project 42])
+        described_class.start(%w[custom-data:list com.example records])
       end.to raise_error(SystemExit)
     end
   end
