@@ -13,6 +13,8 @@ require_relative "commands/agents"
 require_relative "commands/sandbox"
 require_relative "commands/doctor"
 require_relative "commands/sla"
+require_relative "commands/milestones"
+require_relative "commands/issues"
 
 module Kiket
   class CLI < Thor
@@ -56,6 +58,12 @@ module Kiket
 
     desc "sla SUBCOMMAND ...ARGS", "SLA monitoring utilities"
     subcommand "sla", Commands::Sla
+
+    desc "milestones SUBCOMMAND ...ARGS", "Milestone management"
+    subcommand "milestones", Commands::Milestones
+
+    desc "issues SUBCOMMAND ...ARGS", "Issue management"
+    subcommand "issues", Commands::Issues
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor

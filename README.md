@@ -136,6 +136,57 @@ kiket sandbox refresh-data SANDBOX_ID       # Refresh demo data
 kiket sandbox list                          # List sandboxes
 ```
 
+### SLA Commands
+
+```bash
+kiket sla status                      # Show SLA status
+kiket sla metrics PROJECT_ID          # Display SLA metrics
+kiket sla breaches PROJECT_ID         # List SLA breaches
+```
+
+### Milestones Commands
+
+```bash
+kiket milestones list PROJECT_ID                   # List milestones
+kiket milestones list PROJECT_ID --status active   # Filter by status
+kiket milestones show PROJECT_ID MILESTONE_ID      # Show milestone details
+kiket milestones create PROJECT_ID --name "Q1 Release" --target-date 2026-03-31
+kiket milestones update PROJECT_ID MILESTONE_ID --status completed
+kiket milestones delete PROJECT_ID MILESTONE_ID    # Delete with confirmation
+kiket milestones delete PROJECT_ID MILESTONE_ID -f # Delete without confirmation
+```
+
+### Issues Commands
+
+```bash
+# List and filter issues
+kiket issues list PROJECT_ID                       # List issues
+kiket issues list PROJECT_ID --status done         # Filter by status
+kiket issues list PROJECT_ID --type bug            # Filter by type (Epic, UserStory, Task, Bug)
+kiket issues list PROJECT_ID --assignee 5          # Filter by assignee ID
+kiket issues list PROJECT_ID --label urgent        # Filter by label
+kiket issues list PROJECT_ID --search "login"      # Search in title
+
+# Issue CRUD
+kiket issues show ISSUE_KEY                        # Show issue details
+kiket issues create PROJECT_ID --title "Fix bug" --type Bug --priority high
+kiket issues create PROJECT_ID --title "Task" --parent 10 --custom-fields '{"sprint":"Sprint 1"}'
+kiket issues update ISSUE_KEY --status done        # Update issue fields
+kiket issues update ISSUE_KEY --custom-fields '{"story_points":5}'
+kiket issues transition ISSUE_KEY done             # Transition workflow state
+kiket issues delete ISSUE_KEY                      # Delete with confirmation
+kiket issues delete ISSUE_KEY -f                   # Delete without confirmation
+
+# Issue schema (discover types, fields, statuses)
+kiket issues schema PROJECT_ID                     # Show available types, statuses, custom fields
+
+# Comments
+kiket issues comments list ISSUE_KEY               # List comments
+kiket issues comments add ISSUE_KEY "My comment"   # Add a comment
+kiket issues comments update ISSUE_KEY 123 "New text"  # Update comment
+kiket issues comments delete ISSUE_KEY 123         # Delete comment
+```
+
 ### Doctor Commands
 
 ```bash
