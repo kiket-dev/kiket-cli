@@ -586,13 +586,17 @@ module Kiket
         handle_error(e)
       end
 
-      desc "onboarding_wizard", "Generate a local blueprint from the marketplace template"
-      option :identifier, aliases: "-i", desc: "Blueprint identifier (e.g., marketing-ops)"
-      option :name, aliases: "-n", desc: "Product name"
+      desc "onboarding_wizard", "Generate a new marketplace product from the starter template"
+      option :identifier, aliases: "-i", desc: "Product identifier (e.g., my-product)"
+      option :name, aliases: "-n", desc: "Product display name"
       option :description, aliases: "-d", desc: "Product description"
-      option :template, aliases: "-t", default: "sample", desc: "Definition template to copy"
+      option :type, aliases: "-t", default: "bundle", desc: "Template type: bundle, extension, definition"
+      option :sdk, default: "python", desc: "Extension SDK: python, node, ruby"
       option :destination, aliases: "-o", desc: "Destination directory"
-      option :force, type: :boolean, desc: "Overwrite destination if it exists"
+      option :pricing, default: "free", desc: "Pricing model: free, one_time, subscription, usage_based"
+      option :skip_ci, type: :boolean, desc: "Skip GitHub Actions generation"
+      option :skip_validation, type: :boolean, desc: "Skip final validation"
+      option :force, type: :boolean, desc: "Overwrite destination if exists"
       def onboarding_wizard
         identifier = options[:identifier] || prompt.ask("Product identifier (letters, numbers, dashes):") do |q|
           q.required true
@@ -605,29 +609,90 @@ module Kiket
         end
 
         description = options[:description] || prompt.ask("Product description:") do |q|
-          q.default "Describe #{product_name}"
+          q.default "A marketplace product for #{product_name}"
         end
 
-        template_name = (options[:template] || "sample").strip
-        template_path = File.join(definitions_root, template_name)
-        unless Dir.exist?(template_path)
-          error "Template '#{template_name}' not found under #{definitions_root}"
-          exit 1
-        end
+        template_type = options[:type] || prompt.select("Product type:", %w[bundle extension definition])
+        pricing_model = options[:pricing] || prompt.select("Pricing model:", %w[free one_time subscription usage_based])
 
         destination = options[:destination]&.strip
         destination ||= File.join(Dir.pwd, identifier)
         prepare_destination!(destination, force: options[:force])
 
-        FileUtils.cp_r("#{template_path}/.", destination)
-        customize_manifest(destination, identifier: identifier, name: product_name, description: description)
-        create_onboarding_readme(destination, identifier: identifier, name: product_name)
+        # Clone appropriate template based on type
+        spinner = spinner("Creating scaffold...")
+        spinner.auto_spin
 
-        success "Blueprint scaffold created at #{destination}"
-        puts pastel.blue("ℹ Next steps")
-        puts "  • Review #{File.join(destination, '.kiket', 'manifest.yaml')}"
-        puts "  • Commit the repo and push to GitHub"
-        puts "  • Publish a preview with: kiket extensions publish #{destination} --registry marketplace --dry-run"
+        template_name = case template_type
+                        when "extension" then "sample-extension"
+                        when "definition" then "sample"
+                        else "sample"
+        end
+
+        template_path = File.join(definitions_root, template_name)
+        if Dir.exist?(template_path)
+          FileUtils.cp_r("#{template_path}/.", destination)
+        else
+          # Create minimal structure if no template exists
+          create_minimal_scaffold(destination, template_type)
+        end
+
+        spinner.success("Template copied")
+
+        # Customize manifest with all options
+        customize_manifest_full(
+          destination,
+          identifier: identifier,
+          name: product_name,
+          description: description,
+          pricing: pricing_model,
+          template_type: template_type
+        )
+
+        # Generate SDK-specific files for extension type
+        if template_type == "extension"
+          generate_extension_handler(destination, options[:sdk])
+        end
+
+        # Generate CI unless skipped
+        unless options[:skip_ci]
+          generate_github_workflow(destination, template_type, options[:sdk])
+        end
+
+        # Create README
+        create_onboarding_readme_full(
+          destination,
+          identifier: identifier,
+          name: product_name,
+          template_type: template_type,
+          pricing: pricing_model
+        )
+
+        spinner = spinner("Scaffold created")
+        spinner.success
+
+        # Run validation unless skipped
+        unless options[:skip_validation]
+          puts ""
+          puts pastel.bold("Running validation...")
+          checks = run_validation_checks(destination)
+          display_validation_results(checks)
+        end
+
+        # Display next steps
+        puts ""
+        success "Scaffold created at #{destination}"
+        puts ""
+        puts pastel.bold("Next steps:")
+        puts "  1. cd #{destination}"
+        puts "  2. Review .kiket/manifest.yaml and customize"
+        puts "  3. Configure secrets: kiket secrets init"
+        puts "  4. Test locally: kiket extensions test"
+        puts "  5. Validate: kiket marketplace validate"
+        puts "  6. Preview publish: kiket marketplace publish --dry-run"
+        puts "  7. Publish: kiket marketplace publish"
+        puts ""
+        puts pastel.dim("Documentation: https://docs.kiket.dev/guides/marketplace-partner-onboarding")
       rescue Interrupt
         warning "Wizard cancelled"
       end
@@ -680,7 +745,363 @@ module Kiket
         end
       end
 
+      desc "validate [PATH]", "Validate a marketplace product before publishing"
+      option :fix, type: :boolean, desc: "Auto-fix common issues where possible"
+      option :strict, type: :boolean, desc: "Fail on warnings (not just errors)"
+      option :quiet, type: :boolean, desc: "Only output errors"
+      def validate(path = ".")
+        path = File.expand_path(path)
+
+        unless Dir.exist?(path)
+          error "Path does not exist: #{path}"
+          exit 1
+        end
+
+        puts pastel.bold("Validating marketplace product at #{path}") unless options[:quiet]
+
+        checks = run_validation_checks(path)
+        display_validation_results(checks) unless options[:quiet]
+
+        errors = checks.select { |c| c[:status] == :error }
+        warnings = checks.select { |c| c[:status] == :warning }
+
+        if errors.any?
+          error "Validation failed with #{errors.count} error(s)"
+          exit 1
+        elsif options[:strict] && warnings.any?
+          error "Validation failed with #{warnings.count} warning(s) (strict mode)"
+          exit 1
+        elsif warnings.any?
+          warning "Validation passed with #{warnings.count} warning(s)"
+        else
+          success "Validation passed" unless options[:quiet]
+        end
+      end
+
+      desc "diagnose [PATH]", "Check product health and configuration status"
+      option :extension_id, aliases: "-e", desc: "Filter to specific extension"
+      option :verbose, type: :boolean, desc: "Show detailed diagnostics"
+      def diagnose(path = ".")
+        path = File.expand_path(path)
+
+        unless Dir.exist?(path)
+          error "Path does not exist: #{path}"
+          exit 1
+        end
+
+        puts pastel.bold("Product Diagnostics")
+        puts pastel.dim("Path: #{path}")
+        puts ""
+
+        # Load manifest
+        manifest = load_product_manifest(path)
+        unless manifest
+          error "No manifest found. Expected .kiket/manifest.yaml"
+          exit 1
+        end
+
+        product_id = manifest.dig("extension", "id") || manifest["identifier"]
+        puts pastel.bold("Product: ") + (manifest.dig("extension", "name") || manifest["name"] || "Unknown")
+        puts pastel.bold("ID: ") + (product_id || "Not set")
+        puts pastel.bold("Version: ") + (manifest.dig("extension", "version") || manifest["version"] || "0.0.0")
+        puts ""
+
+        # Check secrets configuration
+        check_secrets_configured(manifest, path)
+
+        # Check dependencies
+        check_dependencies_installed(manifest, path)
+
+        # Check event subscriptions
+        check_event_subscriptions(manifest)
+
+        # Check custom data schemas
+        check_custom_data_schemas(manifest, path)
+
+        # Check CI/CD configuration
+        check_ci_configuration(path)
+
+        puts ""
+        success "Diagnostics complete"
+      end
+
       private
+
+      def run_validation_checks(path)
+        checks = []
+
+        # Check manifest exists
+        manifest_path = File.join(path, ".kiket", "manifest.yaml")
+        if File.exist?(manifest_path)
+          checks << { name: "Manifest exists", status: :pass, message: nil }
+          manifest = load_yaml_file(manifest_path)
+
+          # Validate manifest structure
+          checks.concat(validate_manifest_structure(manifest))
+
+          # Check version format
+          version = manifest.dig("extension", "version") || manifest["version"]
+          if version && version.match?(/^\d+\.\d+\.\d+(-[\w.]+)?$/)
+            checks << { name: "Version format (semver)", status: :pass, message: nil }
+          else
+            checks << { name: "Version format (semver)", status: :error, message: "Version '#{version}' is not valid semver (expected: X.Y.Z)" }
+          end
+
+          # Check extension ID format
+          ext_id = manifest.dig("extension", "id") || manifest["identifier"]
+          if ext_id && ext_id.match?(/^[a-z][a-z0-9._-]*\.[a-z][a-z0-9._-]+$/i)
+            checks << { name: "Extension ID format", status: :pass, message: nil }
+          else
+            checks << { name: "Extension ID format", status: :error, message: "ID '#{ext_id}' invalid (expected: domain.name format)" }
+          end
+
+          # Check secrets are documented
+          secrets = manifest.dig("extension", "secrets") || []
+          if secrets.is_a?(Array)
+            secrets.each do |secret|
+              if secret["description"].to_s.strip.empty?
+                checks << { name: "Secret documentation", status: :warning, message: "Secret '#{secret["key"]}' missing description" }
+              end
+            end
+            checks << { name: "Secrets documented", status: :pass, message: nil } if secrets.all? { |s| s["description"].to_s.strip.present? }
+          end
+        else
+          checks << { name: "Manifest exists", status: :error, message: "Missing .kiket/manifest.yaml" }
+        end
+
+        # Check README exists
+        readme_path = Dir.glob(File.join(path, "README*")).first
+        if readme_path
+          checks << { name: "README exists", status: :pass, message: nil }
+        else
+          checks << { name: "README exists", status: :warning, message: "No README file found" }
+        end
+
+        # Check LICENSE exists
+        license_path = Dir.glob(File.join(path, "LICENSE*")).first
+        if license_path
+          checks << { name: "LICENSE exists", status: :pass, message: nil }
+        else
+          checks << { name: "LICENSE exists", status: :warning, message: "No LICENSE file found" }
+        end
+
+        # Check for hardcoded secrets
+        hardcoded = check_for_hardcoded_secrets(path)
+        if hardcoded.empty?
+          checks << { name: "No hardcoded secrets", status: :pass, message: nil }
+        else
+          hardcoded.each do |file|
+            checks << { name: "No hardcoded secrets", status: :error, message: "Potential secret in #{file}" }
+          end
+        end
+
+        # Check CI workflow exists
+        ci_paths = [
+          File.join(path, ".github", "workflows", "ci.yml"),
+          File.join(path, ".github", "workflows", "ci.yaml"),
+          File.join(path, ".github", "workflows", "validate.yml"),
+          File.join(path, ".github", "workflows", "validate.yaml")
+        ]
+        if ci_paths.any? { |p| File.exist?(p) }
+          checks << { name: "CI workflow exists", status: :pass, message: nil }
+        else
+          checks << { name: "CI workflow exists", status: :warning, message: "No GitHub Actions workflow found" }
+        end
+
+        checks
+      end
+
+      def validate_manifest_structure(manifest)
+        checks = []
+        ext = manifest["extension"] || manifest
+
+        required = %w[id name version]
+        required.each do |field|
+          value = ext[field] || manifest[field]
+          if value.to_s.strip.present?
+            checks << { name: "Required field: #{field}", status: :pass, message: nil }
+          else
+            checks << { name: "Required field: #{field}", status: :error, message: "Missing required field '#{field}'" }
+          end
+        end
+
+        # Check description (warning if missing)
+        desc = ext["description"] || manifest["description"]
+        if desc.to_s.strip.present?
+          checks << { name: "Description provided", status: :pass, message: nil }
+        else
+          checks << { name: "Description provided", status: :warning, message: "No description provided" }
+        end
+
+        checks
+      end
+
+      def check_for_hardcoded_secrets(path)
+        suspicious_patterns = [
+          /sk[-_]live[-_]/i,
+          /sk[-_]test[-_]/i,
+          /api[-_]?key\s*[:=]\s*["'][^"']{20,}/i,
+          /secret[-_]?key\s*[:=]\s*["'][^"']{20,}/i,
+          /password\s*[:=]\s*["'][^"']+["']/i
+        ]
+
+        suspicious_files = []
+        ignore_dirs = %w[.git node_modules vendor bundle __pycache__ .venv]
+
+        Dir.glob(File.join(path, "**", "*")).each do |file|
+          next unless File.file?(file)
+          next if ignore_dirs.any? { |dir| file.include?("/#{dir}/") }
+          next unless file.end_with?(".rb", ".py", ".js", ".ts", ".yaml", ".yml", ".json", ".env.example")
+
+          begin
+            content = File.read(file)
+            if suspicious_patterns.any? { |pattern| content.match?(pattern) }
+              relative = file.sub("#{path}/", "")
+              suspicious_files << relative
+            end
+          rescue StandardError
+            # Skip unreadable files
+          end
+        end
+
+        suspicious_files.uniq
+      end
+
+      def display_validation_results(checks)
+        puts ""
+        checks.each do |check|
+          icon = case check[:status]
+                 when :pass then pastel.green("✓")
+                 when :warning then pastel.yellow("⚠")
+                 when :error then pastel.red("✗")
+                 else "?"
+          end
+
+          line = "#{icon} #{check[:name]}"
+          line += " — #{check[:message]}" if check[:message]
+          puts line
+        end
+        puts ""
+      end
+
+      def load_product_manifest(path)
+        manifest_path = File.join(path, ".kiket", "manifest.yaml")
+        return load_yaml_file(manifest_path) if File.exist?(manifest_path)
+
+        # Try alternate location
+        alt_path = File.join(path, "manifest.yaml")
+        return load_yaml_file(alt_path) if File.exist?(alt_path)
+
+        nil
+      end
+
+      def check_secrets_configured(manifest, path)
+        secrets = manifest.dig("extension", "secrets") || []
+        return if secrets.empty?
+
+        puts pastel.bold("Secrets Configuration")
+        secrets.each do |secret|
+          key = secret["key"]
+          required = secret["required"] != false
+          env_present = ENV.key?(key)
+
+          status = if env_present
+                     pastel.green("[configured]")
+          elsif required
+                     pastel.red("[missing - required]")
+          else
+                     pastel.yellow("[not set - optional]")
+          end
+
+          puts "  #{key}: #{status}"
+          puts "    #{pastel.dim(secret["description"])}" if secret["description"]
+        end
+        puts ""
+      end
+
+      def check_dependencies_installed(manifest, path)
+        puts pastel.bold("Dependencies")
+
+        # Check for Python dependencies
+        requirements = File.join(path, "requirements.txt")
+        pyproject = File.join(path, "pyproject.toml")
+        if File.exist?(requirements) || File.exist?(pyproject)
+          puts "  Python: #{pastel.green("requirements found")}"
+        end
+
+        # Check for Node dependencies
+        package_json = File.join(path, "package.json")
+        if File.exist?(package_json)
+          node_modules = File.join(path, "node_modules")
+          if Dir.exist?(node_modules)
+            puts "  Node.js: #{pastel.green("dependencies installed")}"
+          else
+            puts "  Node.js: #{pastel.yellow("run 'npm install'")}"
+          end
+        end
+
+        # Check for Ruby dependencies
+        gemfile = File.join(path, "Gemfile")
+        if File.exist?(gemfile)
+          gemfile_lock = File.join(path, "Gemfile.lock")
+          if File.exist?(gemfile_lock)
+            puts "  Ruby: #{pastel.green("dependencies locked")}"
+          else
+            puts "  Ruby: #{pastel.yellow("run 'bundle install'")}"
+          end
+        end
+
+        puts ""
+      end
+
+      def check_event_subscriptions(manifest)
+        events = manifest.dig("extension", "events") || []
+        return if events.empty?
+
+        puts pastel.bold("Event Subscriptions")
+        events.each do |event|
+          puts "  • #{event}"
+        end
+        puts ""
+      end
+
+      def check_custom_data_schemas(manifest, path)
+        custom_data = manifest.dig("extension", "custom_data") || []
+        return if custom_data.empty?
+
+        puts pastel.bold("Custom Data Modules")
+        custom_data.each do |mod|
+          module_name = mod["module"]
+          schema_path = mod["schema"]
+
+          if schema_path
+            full_path = File.join(path, schema_path)
+            if File.exist?(full_path)
+              puts "  #{module_name}: #{pastel.green("schema found")}"
+            else
+              puts "  #{module_name}: #{pastel.red("schema missing")} (#{schema_path})"
+            end
+          else
+            puts "  #{module_name}: #{pastel.yellow("no schema path specified")}"
+          end
+        end
+        puts ""
+      end
+
+      def check_ci_configuration(path)
+        ci_dir = File.join(path, ".github", "workflows")
+        return unless Dir.exist?(ci_dir)
+
+        workflows = Dir.glob(File.join(ci_dir, "*.{yml,yaml}"))
+        return if workflows.empty?
+
+        puts pastel.bold("CI/CD Configuration")
+        workflows.each do |workflow|
+          name = File.basename(workflow)
+          puts "  • #{name}"
+        end
+        puts ""
+      end
 
       def handle_post_install(installation, env_file)
         resolved = populate_extension_secrets(installation, env_file)
@@ -858,6 +1279,405 @@ module Kiket
           4. Push to GitHub and submit for marketplace review.
 
           _Generated #{Time.now.utc}._
+        MARKDOWN
+        File.write(path, content)
+      end
+
+      def create_minimal_scaffold(destination, template_type)
+        FileUtils.mkdir_p(File.join(destination, ".kiket"))
+        FileUtils.mkdir_p(File.join(destination, ".github", "workflows"))
+
+        case template_type
+        when "extension"
+          FileUtils.mkdir_p(File.join(destination, "src"))
+          FileUtils.mkdir_p(File.join(destination, "tests"))
+        when "definition"
+          FileUtils.mkdir_p(File.join(destination, ".kiket", "workflows"))
+          FileUtils.mkdir_p(File.join(destination, ".kiket", "boards"))
+          FileUtils.mkdir_p(File.join(destination, ".kiket", "issue_types"))
+        end
+      end
+
+      def customize_manifest_full(destination, identifier:, name:, description:, pricing:, template_type:)
+        manifest_path = File.join(destination, ".kiket", "manifest.yaml")
+        FileUtils.mkdir_p(File.dirname(manifest_path))
+
+        manifest = if File.exist?(manifest_path)
+                     YAML.safe_load(File.read(manifest_path)) || {}
+        else
+                     {}
+        end
+
+        # Build extension-style manifest
+        manifest["model_version"] = "1.0"
+        manifest["extension"] ||= {}
+        manifest["extension"]["id"] = "dev.partner.#{identifier}"
+        manifest["extension"]["name"] = name
+        manifest["extension"]["version"] = manifest.dig("extension", "version") || "0.1.0"
+        manifest["extension"]["description"] = description
+        manifest["extension"]["author"] = "Partner Name"
+        manifest["extension"]["license"] = "MIT"
+
+        # Add pricing configuration
+        manifest["extension"]["pricing"] = {
+          "model" => pricing
+        }
+
+        case pricing
+        when "one_time"
+          manifest["extension"]["pricing"]["price_cents"] = 999
+        when "subscription"
+          manifest["extension"]["pricing"]["price_cents"] = 999
+          manifest["extension"]["pricing"]["billing_period"] = "monthly"
+        when "usage_based"
+          manifest["extension"]["pricing"]["unit"] = "request"
+          manifest["extension"]["pricing"]["price_per_unit_cents"] = 1
+        end
+
+        # Add placeholder secrets
+        manifest["extension"]["secrets"] = [
+          {
+            "key" => "#{identifier.upcase.tr("-", "_")}_API_KEY",
+            "description" => "API key for #{name}",
+            "required" => true
+          }
+        ]
+
+        # Add placeholder configuration
+        manifest["extension"]["configuration"] = {
+          "enabled" => {
+            "type" => "boolean",
+            "label" => "Enable #{name}",
+            "default" => true
+          }
+        }
+
+        # Add event subscriptions for extensions
+        if template_type == "extension"
+          manifest["extension"]["events"] = [
+            "workflow.after_transition",
+            "issue.created"
+          ]
+        end
+
+        File.write(manifest_path, YAML.dump(manifest))
+      end
+
+      def generate_extension_handler(destination, sdk)
+        case sdk
+        when "python"
+          generate_python_handler(destination)
+        when "node", "nodejs"
+          generate_node_handler(destination)
+        when "ruby"
+          generate_ruby_handler(destination)
+        end
+      end
+
+      def generate_python_handler(destination)
+        handler_path = File.join(destination, "src", "handler.py")
+        FileUtils.mkdir_p(File.dirname(handler_path))
+        content = <<~PYTHON
+          """Extension event handler."""
+          from kiket_sdk import KiketExtension
+
+          extension = KiketExtension()
+
+
+          @extension.on("workflow.after_transition")
+          def handle_transition(event):
+              """Handle workflow state transitions."""
+              issue = event.issue
+              transition = event.transition
+
+              # Your integration logic here
+              print(f"Issue {issue.key} moved to {transition.to}")
+
+              return {"success": True}
+
+
+          @extension.on("issue.created")
+          def handle_issue_created(event):
+              """Handle new issue creation."""
+              issue = event.issue
+
+              # Your integration logic here
+              print(f"New issue created: {issue.title}")
+
+              return {"success": True}
+
+
+          if __name__ == "__main__":
+              extension.run()
+        PYTHON
+        File.write(handler_path, content)
+
+        # Create requirements.txt
+        requirements_path = File.join(destination, "requirements.txt")
+        File.write(requirements_path, "kiket-sdk>=0.1.0\n")
+
+        # Create test file
+        test_path = File.join(destination, "tests", "test_handler.py")
+        FileUtils.mkdir_p(File.dirname(test_path))
+        test_content = <<~PYTHON
+          """Tests for extension handler."""
+          import pytest
+          from src.handler import extension
+
+
+          def test_handler_registered():
+              """Verify handlers are registered."""
+              assert len(extension.handlers) > 0
+        PYTHON
+        File.write(test_path, test_content)
+      end
+
+      def generate_node_handler(destination)
+        handler_path = File.join(destination, "src", "handler.ts")
+        FileUtils.mkdir_p(File.dirname(handler_path))
+        content = <<~TYPESCRIPT
+          import { KiketExtension } from '@kiket/sdk';
+
+          const extension = new KiketExtension();
+
+          extension.on('workflow.after_transition', async (event) => {
+            const { issue, transition } = event;
+
+            // Your integration logic here
+            console.log(`Issue ${issue.key} moved to ${transition.to}`);
+
+            return { success: true };
+          });
+
+          extension.on('issue.created', async (event) => {
+            const { issue } = event;
+
+            // Your integration logic here
+            console.log(`New issue created: ${issue.title}`);
+
+            return { success: true };
+          });
+
+          export default extension;
+        TYPESCRIPT
+        File.write(handler_path, content)
+
+        # Create package.json
+        package_path = File.join(destination, "package.json")
+        package_content = {
+          "name" => File.basename(destination),
+          "version" => "0.1.0",
+          "main" => "dist/handler.js",
+          "scripts" => {
+            "build" => "tsc",
+            "test" => "jest",
+            "lint" => "eslint src/"
+          },
+          "dependencies" => {
+            "@kiket/sdk" => "^0.1.0"
+          },
+          "devDependencies" => {
+            "typescript" => "^5.0.0",
+            "@types/node" => "^20.0.0",
+            "jest" => "^29.0.0",
+            "@types/jest" => "^29.0.0",
+            "eslint" => "^8.0.0"
+          }
+        }
+        File.write(package_path, JSON.pretty_generate(package_content))
+      end
+
+      def generate_ruby_handler(destination)
+        handler_path = File.join(destination, "lib", "handler.rb")
+        FileUtils.mkdir_p(File.dirname(handler_path))
+        content = <<~RUBY
+          # frozen_string_literal: true
+
+          require "kiket"
+
+          class Handler < Kiket::Extension
+            on :workflow_after_transition do |event|
+              issue = event.issue
+              transition = event.transition
+
+              # Your integration logic here
+              puts "Issue \#{issue.key} moved to \#{transition.to}"
+
+              { success: true }
+            end
+
+            on :issue_created do |event|
+              issue = event.issue
+
+              # Your integration logic here
+              puts "New issue created: \#{issue.title}"
+
+              { success: true }
+            end
+          end
+        RUBY
+        File.write(handler_path, content)
+
+        # Create Gemfile
+        gemfile_path = File.join(destination, "Gemfile")
+        gemfile_content = <<~GEMFILE
+          source "https://rubygems.org"
+
+          gem "kiket", "~> 0.1"
+
+          group :development, :test do
+            gem "rspec", "~> 3.0"
+            gem "rubocop", "~> 1.0"
+          end
+        GEMFILE
+        File.write(gemfile_path, gemfile_content)
+      end
+
+      def generate_github_workflow(destination, template_type, sdk)
+        workflow_path = File.join(destination, ".github", "workflows", "ci.yml")
+        FileUtils.mkdir_p(File.dirname(workflow_path))
+
+        test_command = case sdk
+                       when "python" then "pytest"
+                       when "node", "nodejs" then "npm test"
+                       when "ruby" then "bundle exec rspec"
+                       else "echo 'No tests configured'"
+        end
+
+        lint_command = case sdk
+                       when "python" then "ruff check ."
+                       when "node", "nodejs" then "npm run lint"
+                       when "ruby" then "bundle exec rubocop"
+                       else "echo 'No linter configured'"
+        end
+
+        setup_steps = case sdk
+                      when "python"
+                        <<~YAML
+              - uses: actions/setup-python@v5
+                with:
+                  python-version: '3.11'
+              - run: pip install -r requirements.txt
+              - run: pip install pytest ruff
+                        YAML
+                      when "node", "nodejs"
+                        <<~YAML
+              - uses: actions/setup-node@v4
+                with:
+                  node-version: '20'
+              - run: npm install
+                        YAML
+                      when "ruby"
+                        <<~YAML
+              - uses: ruby/setup-ruby@v1
+                with:
+                  ruby-version: '3.3'
+                  bundler-cache: true
+                        YAML
+                      else
+                        ""
+        end
+
+        content = <<~YAML
+          name: CI
+
+          on:
+            push:
+              branches: [main]
+            pull_request:
+              branches: [main]
+
+          jobs:
+            validate:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+          #{setup_steps.lines.map { |l| "        #{l}" }.join}
+                - name: Lint
+                  run: #{lint_command}
+
+                - name: Test
+                  run: #{test_command}
+
+                - name: Validate manifest
+                  run: |
+                    if command -v kiket &> /dev/null; then
+                      kiket marketplace validate .
+                    else
+                      echo "Kiket CLI not installed, skipping manifest validation"
+                    fi
+        YAML
+        File.write(workflow_path, content)
+      end
+
+      def create_onboarding_readme_full(destination, identifier:, name:, template_type:, pricing:)
+        path = File.join(destination, "README.md")
+        content = <<~MARKDOWN
+          # #{name}
+
+          A #{template_type} for the Kiket Marketplace.
+
+          ## Overview
+
+          This #{template_type} was generated via `kiket marketplace onboarding-wizard`.
+
+          - **ID:** `dev.partner.#{identifier}`
+          - **Pricing:** #{pricing}
+          - **Type:** #{template_type.capitalize}
+
+          ## Getting Started
+
+          ### Prerequisites
+
+          - Kiket CLI (`npm install -g @kiket/cli` or `brew install kiket`)
+          - GitHub account
+
+          ### Development
+
+          1. Install dependencies
+          2. Configure secrets in your environment
+          3. Run tests locally
+
+          ### Configuration
+
+          Edit `.kiket/manifest.yaml` to customize:
+          - Extension metadata
+          - Secret requirements
+          - Event subscriptions
+          - Pricing details
+
+          ## Testing
+
+          ```bash
+          # Validate the manifest
+          kiket marketplace validate
+
+          # Run diagnostics
+          kiket marketplace diagnose
+
+          # Test event handling
+          kiket extensions test
+          ```
+
+          ## Publishing
+
+          ```bash
+          # Preview what will be published
+          kiket marketplace publish --dry-run
+
+          # Publish to marketplace
+          kiket marketplace publish
+          ```
+
+          ## Documentation
+
+          - [Marketplace Partner Guide](https://docs.kiket.dev/guides/marketplace-partner-onboarding)
+          - [Extension SDK Reference](https://docs.kiket.dev/sdk/overview)
+          - [Event Reference](https://docs.kiket.dev/reference/events)
+
+          ---
+
+          _Generated #{Time.now.utc} with Kiket CLI_
         MARKDOWN
         File.write(path, content)
       end
