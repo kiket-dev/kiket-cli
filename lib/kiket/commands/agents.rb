@@ -162,6 +162,208 @@ module Kiket
         handle_error(e)
       end
 
+      desc "actions", "List available AI actions for a project"
+      option :project, type: :string, required: true, desc: "Project ID or slug"
+      option :category, type: :string, desc: "Filter by category"
+      option :capability, type: :string, desc: "Filter by capability"
+      def actions
+        ensure_authenticated!
+        org = organization
+
+        unless org
+          error "Organization required"
+          exit 1
+        end
+
+        params = { organization: org, project_id: options[:project] }
+        params[:category] = options[:category] if options[:category]
+        params[:capability] = options[:capability] if options[:capability]
+
+        response = client.get("/api/v1/ai_actions", params: params)
+        entries = response.fetch("actions", [])
+
+        if output_format == "human"
+          if entries.empty?
+            warning "No AI actions found for this project."
+            return
+          end
+
+          rows = entries.map do |entry|
+            {
+              id: entry["id"],
+              name: entry["name"],
+              description: truncate_text(entry["description"], 40),
+              category: entry["category"] || "-",
+              cost_tier: entry["cost_tier"] || "-"
+            }
+          end
+
+          output_data(rows, headers: %i[id name description category cost_tier])
+
+          puts ""
+          puts "Categories: #{response.fetch('categories', []).join(', ')}"
+          puts "Capabilities: #{response.fetch('capabilities', []).join(', ')}"
+        else
+          output_data(response, headers: nil)
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "execute AGENT_ID", "Execute an AI action"
+      option :project, type: :string, required: true, desc: "Project ID or slug"
+      option :input, type: :string, desc: "JSON input payload"
+      option :input_file, type: :string, desc: "Path to JSON file with input payload"
+      option :resource_type, type: :string, desc: "Resource type (e.g., Issue)"
+      option :resource_id, type: :string, desc: "Resource ID"
+      option :trigger_source, type: :string, default: "cli", desc: "Trigger source identifier"
+      def execute(agent_id)
+        ensure_authenticated!
+        org = organization
+
+        unless org
+          error "Organization required"
+          exit 1
+        end
+
+        input = parse_input
+        project_id = options[:project]
+
+        spinner = TTY::Spinner.new("[:spinner] Executing AI action #{agent_id}...", format: :dots)
+        spinner.auto_spin
+
+        body = {
+          project_id: project_id,
+          input: input,
+          trigger_source: options[:trigger_source]
+        }
+        body[:resource_type] = options[:resource_type] if options[:resource_type]
+        body[:resource_id] = options[:resource_id] if options[:resource_id]
+
+        response = client.post(
+          "/api/v1/ai_actions/#{agent_id}/execute",
+          body,
+          params: { organization: org }
+        )
+
+        if response["status"] == "failed"
+          spinner.error("Failed!")
+          error response["error"] || "Execution failed"
+          exit 1
+        else
+          spinner.success("Done!")
+        end
+
+        if output_format == "human"
+          puts ""
+          puts pastel.bold("Execution Result:")
+          puts "  Status: #{colorize_status(response['status'])}"
+          puts "  Execution ID: #{response['execution_id']}"
+
+          if response["output"]
+            puts ""
+            puts pastel.bold("Output:")
+            output_text = response["output"].is_a?(String) ? response["output"] : JSON.pretty_generate(response["output"])
+            puts output_text
+          end
+
+          if response["metadata"]
+            puts ""
+            puts "Duration: #{response.dig('metadata', 'duration_ms') || 'N/A'}ms"
+            puts "Tokens: #{response.dig('metadata', 'token_count') || 'N/A'}"
+          end
+        else
+          output_data(response, headers: nil)
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "history", "Show AI action execution history"
+      option :project, type: :string, desc: "Filter by project ID"
+      option :agent, type: :string, desc: "Filter by agent ID"
+      option :status, type: :string, desc: "Filter by status (pending, running, completed, failed)"
+      option :date_range, type: :string, default: "week", desc: "Date range (today, week, month)"
+      option :limit, type: :numeric, default: 20, desc: "Maximum number of results"
+      def history
+        ensure_authenticated!
+        org = organization
+
+        unless org
+          error "Organization required"
+          exit 1
+        end
+
+        params = {
+          organization: org,
+          per_page: options[:limit],
+          date_range: options[:date_range]
+        }
+        params[:project_id] = options[:project] if options[:project]
+        params[:agent_id] = options[:agent] if options[:agent]
+        params[:status] = options[:status] if options[:status]
+
+        response = client.get("/api/v1/ai_actions/executions", params: params)
+        entries = response.fetch("executions", [])
+
+        if output_format == "human"
+          if entries.empty?
+            warning "No execution history found."
+            return
+          end
+
+          rows = entries.map do |entry|
+            {
+              id: entry["id"],
+              agent: entry["agent_name"] || entry["agent_id"],
+              status: colorize_status(entry["status"]),
+              project: entry.dig("project", "name") || "-",
+              user: entry.dig("user", "name") || "-",
+              duration: entry["duration_ms"] ? "#{entry['duration_ms']}ms" : "-",
+              created_at: format_time(entry["created_at"])
+            }
+          end
+
+          output_data(rows, headers: %i[id agent status project user duration created_at])
+
+          pagination = response["pagination"]
+          if pagination
+            puts ""
+            puts "Showing #{entries.size} of #{pagination['total']} executions (page #{pagination['page']})"
+          end
+        else
+          output_data(response, headers: nil)
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
+      desc "cancel EXECUTION_ID", "Cancel a running AI action execution"
+      def cancel(execution_id)
+        ensure_authenticated!
+        org = organization
+
+        unless org
+          error "Organization required"
+          exit 1
+        end
+
+        response = client.post(
+          "/api/v1/ai_actions/executions/#{execution_id}/cancel",
+          {},
+          params: { organization: org }
+        )
+
+        if response["status"] == "cancelled"
+          success "Execution #{execution_id} cancelled successfully."
+        else
+          error response["error"] || "Failed to cancel execution"
+          exit 1
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       no_commands do
         def format_endpoints(endpoints)
           Array(endpoints).map do |endpoint|
@@ -219,6 +421,35 @@ module Kiket
           end
 
           puts ""
+        end
+
+        def truncate_text(text, length)
+          return "-" if text.nil? || text.empty?
+          text.length > length ? "#{text[0...length]}..." : text
+        end
+
+        def colorize_status(status)
+          case status&.to_s
+          when "success", "completed", "ok"
+            pastel.green(status)
+          when "failed", "error"
+            pastel.red(status)
+          when "running", "in_progress"
+            pastel.blue(status)
+          when "pending", "queued"
+            pastel.yellow(status)
+          when "cancelled", "canceled"
+            pastel.dim(status)
+          else
+            status || "-"
+          end
+        end
+
+        def format_time(iso_time)
+          return "-" unless iso_time
+          Time.parse(iso_time).strftime("%Y-%m-%d %H:%M")
+        rescue StandardError
+          iso_time
         end
       end
     end
