@@ -15,6 +15,7 @@ require_relative "commands/doctor"
 require_relative "commands/sla"
 require_relative "commands/milestones"
 require_relative "commands/issues"
+require_relative "commands/intakes"
 
 module Kiket
   class CLI < Thor
@@ -64,6 +65,9 @@ module Kiket
 
     desc "issues SUBCOMMAND ...ARGS", "Issue management"
     subcommand "issues", Commands::Issues
+
+    desc "intakes SUBCOMMAND ...ARGS", "Intake forms management"
+    subcommand "intakes", Commands::Intakes
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor
