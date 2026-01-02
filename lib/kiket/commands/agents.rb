@@ -46,12 +46,12 @@ module Kiket
         handle_error(e)
       end
 
-      desc "run AGENT_ID", "Execute an agent with the specified input"
+      desc "execute AGENT_ID", "Execute an agent with the specified input"
       option :project, type: :string, required: true, desc: "Project ID or slug"
       option :input, type: :string, desc: "JSON input payload"
       option :input_file, type: :string, desc: "Path to JSON file with input payload"
       option :stream, type: :boolean, default: false, desc: "Stream output as it arrives"
-      def run(agent_id)
+      def execute(agent_id)
         ensure_authenticated!
         org = organization
 

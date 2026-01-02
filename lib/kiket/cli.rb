@@ -16,6 +16,7 @@ require_relative "commands/sla"
 require_relative "commands/milestones"
 require_relative "commands/issues"
 require_relative "commands/intakes"
+require_relative "commands/audit"
 
 module Kiket
   class CLI < Thor
@@ -68,6 +69,9 @@ module Kiket
 
     desc "intakes SUBCOMMAND ...ARGS", "Intake forms management"
     subcommand "intakes", Commands::Intakes
+
+    desc "audit SUBCOMMAND ...ARGS", "Blockchain audit verification"
+    subcommand "audit", Commands::Audit
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor
