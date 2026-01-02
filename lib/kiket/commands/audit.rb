@@ -44,13 +44,15 @@ module Kiket
       desc "proof RECORD_ID", "Get blockchain proof for an audit record"
       option :format, type: :string, default: "json", desc: "Output format (json, file)"
       option :output, type: :string, desc: "Output file path (for --format=file)"
+      option :type, type: :string, default: "AuditLog", desc: "Record type (AuditLog, AIAuditLog)"
       def proof(record_id)
         ensure_authenticated!
 
         spinner = spinner("Fetching proof...")
         spinner.auto_spin
 
-        response = client.get("/api/v1/audit/records/#{record_id}/proof")
+        params = options[:type] != "AuditLog" ? { record_type: options[:type] } : {}
+        response = client.get("/api/v1/audit/records/#{record_id}/proof", params: params)
         spinner.success
 
         proof_data = response
