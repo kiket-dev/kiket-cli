@@ -57,6 +57,9 @@ module Kiket
         }
       }.freeze
 
+      VALID_STEP_TYPES = %w[secrets configure test info].freeze
+      VALID_OBTAIN_TYPES = %w[oauth2 oauth2_client_credentials api_key token input basic auto_generate].freeze
+
       map(
         "custom-data:list" => :custom_data_list,
         "custom-data:get" => :custom_data_get,
@@ -64,7 +67,8 @@ module Kiket
         "custom-data:update" => :custom_data_update,
         "custom-data:delete" => :custom_data_delete,
         "secrets:pull" => :extension_secrets_pull,
-        "secrets:push" => :extension_secrets_push
+        "secrets:push" => :extension_secrets_push,
+        "wizard:preview" => :wizard_preview
       )
       desc "scaffold NAME", "Generate a new extension project"
       option :sdk, type: :string, default: "python", desc: "SDK language (python, node, ruby)"
@@ -184,20 +188,53 @@ module Kiket
         errors = []
         warnings = []
 
-        # Required fields
-        errors << "Missing extension.id" unless manifest.dig("extension", "id")
-        errors << "Missing extension.name" unless manifest.dig("extension", "name")
-        errors << "Missing delivery configuration" unless manifest["delivery"]
+        # Validate model_version
+        unless manifest["model_version"]
+          warnings << "Missing model_version (recommended: \"1.0\")"
+        end
 
-        # Validate delivery configuration
-        if manifest["delivery"]
-          delivery_type = manifest.dig("delivery", "type")
-          errors << "Invalid delivery type" unless %w[http internal].include?(delivery_type)
+        # Require nested extension block (canonical format)
+        unless manifest["extension"].is_a?(Hash)
+          errors << "Missing 'extension:' block - use nested format with model_version: \"1.0\""
+        end
 
-          if delivery_type == "http"
-            errors << "Missing delivery.url" unless manifest.dig("delivery", "url")
-            timeout = manifest.dig("delivery", "timeout")
-            errors << "Timeout must be between 100 and 10000ms" if timeout && (timeout < 100 || timeout > 10_000)
+        # Required fields - only accept nested extension.id format
+        extension_id = manifest.dig("extension", "id")
+        extension_name = manifest.dig("extension", "name")
+        errors << "Missing extension.id" unless extension_id
+        errors << "Missing extension.name" unless extension_name
+
+        # Validate extension ID format
+        if extension_id && !extension_id.match?(/^[a-z][a-z0-9.-]+$/)
+          warnings << "extension.id should use lowercase with dots (e.g., dev.kiket.ext.myextension)"
+        end
+
+        # Validate delivery configuration - only accept string format with callback block
+        delivery = manifest.dig("extension", "delivery")
+        errors << "Missing extension.delivery" unless delivery
+
+        if delivery
+          unless delivery.is_a?(String)
+            errors << "extension.delivery must be a string ('http' or 'internal'), not a hash"
+          end
+
+          unless %w[http internal].include?(delivery)
+            errors << "extension.delivery must be 'http' or 'internal', got '#{delivery}'"
+          end
+
+          if delivery == "http"
+            callback = manifest.dig("extension", "callback")
+            unless callback.is_a?(Hash)
+              errors << "extension.callback block required for HTTP delivery"
+            end
+
+            callback_url = callback&.dig("url")
+            errors << "Missing extension.callback.url" unless callback_url
+
+            timeout = callback&.dig("timeout")
+            if timeout && (timeout < 100 || timeout > 60_000)
+              errors << "extension.callback.timeout must be between 100 and 60000ms"
+            end
           end
         end
 
@@ -211,6 +248,11 @@ module Kiket
         custom_data_results = validate_custom_data_assets(path, manifest)
         errors.concat(custom_data_results[:errors])
         warnings.concat(custom_data_results[:warnings])
+
+        # Validate wizard setup steps
+        wizard_results = validate_wizard_setup(manifest)
+        errors.concat(wizard_results[:errors])
+        warnings.concat(wizard_results[:warnings])
 
         spinner.stop
 
@@ -557,6 +599,104 @@ module Kiket
         handle_error(e)
       end
 
+      desc "wizard:preview [PATH]", "Preview wizard setup steps in the terminal"
+      option :step, type: :numeric, desc: "Show specific step (1-indexed)"
+      option :json, type: :boolean, desc: "Output as JSON"
+      def wizard_preview(path = ".")
+        manifest_path = File.join(path, ".kiket", "manifest.yaml")
+
+        unless File.exist?(manifest_path)
+          error "No manifest.yaml found at #{manifest_path}"
+          exit 1
+        end
+
+        require "yaml"
+        manifest = YAML.load_file(manifest_path)
+        setup_steps = manifest.dig("extension", "setup") || manifest["setup"]
+
+        if setup_steps.nil? || setup_steps.empty?
+          warning "No setup wizard steps found in manifest"
+          info "Add 'extension.setup' to your manifest to define wizard steps"
+          exit 0
+        end
+
+        if options[:json]
+          require "json"
+          puts JSON.pretty_generate(setup_steps)
+          return
+        end
+
+        puts pastel.bold("\nWizard Setup Steps\n")
+        puts "Extension: #{manifest.dig("extension", "name") || manifest["name"]}"
+        puts "Total steps: #{setup_steps.length}\n\n"
+
+        setup_steps.each_with_index do |step, index|
+          next if options[:step] && options[:step] != (index + 1)
+
+          step_type = step.keys.first
+          step_config = step[step_type]
+
+          puts pastel.cyan("Step #{index + 1}: #{step_type.upcase}")
+          puts "  Title: #{step_config['title']}" if step_config["title"]
+          puts "  Description: #{step_config['description']}" if step_config["description"]
+
+          case step_type
+          when "secrets"
+            fields = step_config["fields"] || []
+            puts "  Fields (#{fields.length}):"
+            fields.each do |field|
+              obtain_type = field.dig("obtain", "type") || "input"
+              secret = field.dig("obtain", "secret") ? " 🔒" : ""
+              puts "    - #{field['key']} (#{obtain_type})#{secret}"
+              puts "      Label: #{field['label']}" if field["label"]
+            end
+
+          when "configure"
+            fields = step_config["fields"] || []
+            puts "  Fields (#{fields.length}):"
+            fields.each do |field|
+              required = field["required"] ? " *" : ""
+              show_when = field["showWhen"] ? " [conditional]" : ""
+              puts "    - #{field['key']} (#{field['type'] || 'text'})#{required}#{show_when}"
+              puts "      Label: #{field['label']}" if field["label"]
+            end
+
+          when "test"
+            puts "  Action: #{step_config['action']}" if step_config["action"]
+            puts "  Success message: #{step_config['successMessage']}" if step_config["successMessage"]
+
+          when "info"
+            content = step_config["content"] || ""
+            preview = content.split("\n").first(3).join("\n")
+            puts "  Content preview:"
+            puts "    #{preview.gsub("\n", "\n    ")}..."
+            links = step_config["links"] || []
+            if links.any?
+              puts "  Links:"
+              links.each do |link|
+                puts "    - #{link['label']}: #{link['url']}"
+              end
+            end
+          end
+
+          puts ""
+        end
+
+        # Validate and show warnings
+        results = validate_wizard_setup(manifest)
+        if results[:warnings].any?
+          warning "Warnings:"
+          results[:warnings].each { |w| puts "  ⚠ #{w}" }
+        end
+        if results[:errors].any?
+          error "Errors:"
+          results[:errors].each { |e| puts "  ✗ #{e}" }
+          exit 1
+        end
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       desc "custom-data:list MODULE TABLE", "List custom data records via the workspace API"
       option :project, type: :numeric, desc: "Project ID"
       option :project_key, type: :string, desc: "Project key"
@@ -842,7 +982,8 @@ module Kiket
             "id" => resolved_id,
             "name" => name,
             "version" => "1.0.0",
-            "description" => "Description of #{name}"
+            "description" => "Description of #{name}",
+            "setup" => generate_wizard_steps_for_template(template_type, name)
           },
           "delivery" => {
             "type" => "http",
@@ -858,6 +999,173 @@ module Kiket
         }
 
         File.write(File.join(manifest_dir, "manifest.yaml"), YAML.dump(manifest))
+      end
+
+      def generate_wizard_steps_for_template(template_type, name)
+        base_steps = [
+          {
+            "secrets" => {
+              "title" => "Connect to Service",
+              "description" => "Enter your API credentials to get started",
+              "required" => true,
+              "fields" => [
+                {
+                  "key" => "API_KEY",
+                  "label" => "API Key",
+                  "obtain" => {
+                    "type" => "api_key",
+                    "secret" => true,
+                    "help_url" => "https://example.com/docs/api-keys"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+
+        case template_type
+        when "webhook_guard"
+          base_steps + [
+            {
+              "configure" => {
+                "title" => "Guard Settings",
+                "description" => "Configure how transitions are validated",
+                "fields" => [
+                  {
+                    "key" => "validation_mode",
+                    "type" => "select",
+                    "label" => "Validation Mode",
+                    "options" => [
+                      { "value" => "strict", "label" => "Strict - Block on any failure" },
+                      { "value" => "lenient", "label" => "Lenient - Allow with warnings" }
+                    ],
+                    "default" => "strict"
+                  },
+                  {
+                    "key" => "timeout_seconds",
+                    "type" => "number",
+                    "label" => "Timeout (seconds)",
+                    "default" => 5
+                  }
+                ]
+              }
+            },
+            {
+              "test" => {
+                "title" => "Test Connection",
+                "description" => "Verify your configuration is working",
+                "action" => "#{name.downcase.gsub(/\s+/, ".")}.testConnection",
+                "required" => false
+              }
+            }
+          ]
+
+        when "outbound_integration"
+          base_steps + [
+            {
+              "configure" => {
+                "title" => "Integration Settings",
+                "description" => "Configure how data is sent to the external service",
+                "fields" => [
+                  {
+                    "key" => "sync_mode",
+                    "type" => "select",
+                    "label" => "Sync Mode",
+                    "options" => [
+                      { "value" => "realtime", "label" => "Real-time" },
+                      { "value" => "batched", "label" => "Batched (every 5 minutes)" }
+                    ],
+                    "default" => "realtime"
+                  }
+                ]
+              }
+            },
+            {
+              "test" => {
+                "title" => "Test Integration",
+                "description" => "Send a test event to verify connectivity",
+                "action" => "#{name.downcase.gsub(/\s+/, ".")}.testConnection"
+              }
+            },
+            {
+              "info" => {
+                "title" => "Setup Complete",
+                "content" => "## You're all set!\n\nYour #{name} integration is now configured.\n\n- Events will be sent automatically\n- Check the extension logs for delivery status"
+              }
+            }
+          ]
+
+        when "notification_pack"
+          [
+            {
+              "secrets" => {
+                "title" => "Connect Notification Service",
+                "description" => "Enter your notification service credentials",
+                "fields" => [
+                  {
+                    "key" => "NOTIFICATION_API_KEY",
+                    "label" => "API Key",
+                    "obtain" => { "type" => "api_key", "secret" => true }
+                  }
+                ]
+              }
+            },
+            {
+              "configure" => {
+                "title" => "Notification Settings",
+                "description" => "Configure where and how notifications are sent",
+                "fields" => [
+                  {
+                    "key" => "default_channel",
+                    "type" => "text",
+                    "label" => "Default Channel",
+                    "placeholder" => "#general"
+                  },
+                  {
+                    "key" => "notify_on_create",
+                    "type" => "boolean",
+                    "label" => "Notify on Issue Created",
+                    "default" => true
+                  },
+                  {
+                    "key" => "notify_on_transition",
+                    "type" => "boolean",
+                    "label" => "Notify on Status Change",
+                    "default" => true
+                  }
+                ]
+              }
+            },
+            {
+              "test" => {
+                "title" => "Test Notifications",
+                "description" => "Send a test notification",
+                "action" => "#{name.downcase.gsub(/\s+/, ".")}.sendTest",
+                "successMessage" => "Test notification sent successfully!"
+              }
+            },
+            {
+              "info" => {
+                "title" => "Ready to Go",
+                "content" => "## Notifications Configured!\n\nYour #{name} notifications are ready.\n\n### What happens next:\n- Issue created → Notification sent\n- Status changes → Notification sent",
+                "links" => [
+                  { "label" => "Documentation", "url" => "https://docs.kiket.dev" }
+                ]
+              }
+            }
+          ]
+
+        else
+          # Custom template - minimal steps
+          base_steps + [
+            {
+              "info" => {
+                "title" => "Setup Complete",
+                "content" => "## #{name} is ready!\n\nYour extension has been configured. Customize this wizard in your manifest.yaml."
+              }
+            }
+          ]
+        end
       end
 
       def generate_hooks_for_template(template_type)
@@ -1373,14 +1681,33 @@ module Kiket
 
           module_files.each do |file|
             data = YAML.safe_load_file(file)
-            module_id = data.dig("module", "id")
-            if module_id.nil?
-              errors << "#{relative_to_repo(file)} missing module.id"
+
+            # Only accept string format: module: "module_id"
+            module_value = data["module"]
+
+            if module_value.nil?
+              errors << "#{relative_to_repo(file)} missing 'module:' field"
               next
             end
 
-            tables = Array(data.dig("module", "tables"))
-            errors << "#{relative_to_repo(file)} must define at least one table" if tables.empty?
+            unless module_value.is_a?(String)
+              errors << "#{relative_to_repo(file)} 'module:' must be a string, not a hash"
+              next
+            end
+
+            module_id = module_value
+
+            # Validate module ID format
+            unless module_id.match?(/^[a-z][a-z0-9.-]+$/)
+              warnings << "#{relative_to_repo(file)} module ID should use lowercase with dots (e.g., dev.kiket.ext.myextension.data)"
+            end
+
+            # Tables must be at root level
+            tables = data["tables"]
+            if tables.nil? || (tables.is_a?(Hash) && tables.empty?) || (tables.is_a?(Array) && tables.empty?)
+              errors << "#{relative_to_repo(file)} must define at least one table"
+            end
+
             local_modules[module_id] = file
           rescue Psych::SyntaxError => e
             errors << "Invalid YAML in #{relative_to_repo(file)}: #{e.message}"
@@ -1392,7 +1719,7 @@ module Kiket
             next unless module_id
 
             ops = Array(entry["operations"] || entry[:operations]).map(&:to_s)
-            invalid = ops.reject { |op| %w[read write admin].include?(op) }
+            invalid = ops.reject { |op| %w[read write delete admin].include?(op) }
             if invalid.any?
               errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(", ")}"
             end
@@ -1413,6 +1740,138 @@ module Kiket
           Pathname.new(path).relative_path_from(Pathname.new(Dir.pwd)).to_s
         rescue ArgumentError
           path
+        end
+
+        def validate_wizard_setup(manifest)
+          errors = []
+          warnings = []
+
+          setup_steps = manifest.dig("extension", "setup") || manifest["setup"]
+          return { errors: errors, warnings: warnings } if setup_steps.nil? || setup_steps.empty?
+
+          setup_steps.each_with_index do |step, index|
+            step_num = index + 1
+            step_type = step.keys.first
+            step_config = step[step_type]
+
+            unless VALID_STEP_TYPES.include?(step_type)
+              errors << "Step #{step_num}: Invalid step type '#{step_type}'. Valid: #{VALID_STEP_TYPES.join(", ")}"
+              next
+            end
+
+            # Validate step configuration
+            case step_type
+            when "secrets"
+              # Support both direct fields and collect (reference to configuration keys)
+              fields = step_config["fields"] || []
+              collect_keys = step_config["collect"] || []
+
+              if fields.empty? && collect_keys.empty?
+                errors << "Step #{step_num} (secrets): Must define 'fields' or 'collect'"
+              end
+
+              # Validate inline fields
+              fields.each do |field|
+                unless field["key"]
+                  errors << "Step #{step_num} (secrets): Field missing required 'key'"
+                end
+
+                obtain_type = field.dig("obtain", "type")
+                if obtain_type && !VALID_OBTAIN_TYPES.include?(obtain_type)
+                  errors << "Step #{step_num}: Invalid obtain type '#{obtain_type}'. Valid: #{VALID_OBTAIN_TYPES.join(", ")}"
+                end
+
+                # OAuth fields require authorization_url and token_url
+                if %w[oauth2 oauth2_client_credentials].include?(obtain_type)
+                  unless field.dig("obtain", "authorization_url")
+                    errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing authorization_url"
+                  end
+                  unless field.dig("obtain", "token_url")
+                    errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing token_url"
+                  end
+                end
+              end
+
+              # Validate collect references against configuration
+              if collect_keys.any?
+                config_keys = extract_config_keys(manifest)
+
+                collect_keys.each do |key|
+                  unless config_keys.include?(key)
+                    warnings << "Step #{step_num} (secrets): collect references '#{key}' not found in configuration"
+                  end
+                end
+              end
+
+            when "configure"
+              # Support both direct fields and collect (reference to configuration keys)
+              fields = step_config["fields"] || []
+              collect_keys = step_config["collect"] || []
+
+              if fields.empty? && collect_keys.empty?
+                warnings << "Step #{step_num} (configure): No fields or collect defined"
+              end
+
+              # Validate inline fields
+              fields.each do |field|
+                unless field["key"]
+                  errors << "Step #{step_num} (configure): Field missing required 'key'"
+                end
+
+                # Validate showWhen references
+                if field["showWhen"]
+                  show_when = field["showWhen"]
+                  ref_field = show_when["field"]
+                  unless fields.any? { |f| f["key"] == ref_field }
+                    warnings << "Step #{step_num}: showWhen references unknown field '#{ref_field}'"
+                  end
+                end
+
+                # Validate select options
+                if field["type"] == "select" && (field["options"].nil? || field["options"].empty?)
+                  errors << "Step #{step_num}: Select field '#{field["key"]}' must have options"
+                end
+              end
+
+              # Validate collect references against configuration
+              if collect_keys.any?
+                config_keys = extract_config_keys(manifest)
+
+                collect_keys.each do |key|
+                  unless config_keys.include?(key)
+                    warnings << "Step #{step_num} (configure): collect references '#{key}' not found in configuration"
+                  end
+                end
+              end
+
+            when "test"
+              unless step_config["action"]
+                warnings << "Step #{step_num} (test): No action defined - step will be skipped"
+              end
+
+            when "info"
+              unless step_config["content"] || step_config["title"]
+                warnings << "Step #{step_num} (info): No content or title defined"
+              end
+
+              (step_config["links"] || []).each do |link|
+                unless link["url"] && link["label"]
+                  errors << "Step #{step_num} (info): Links must have 'url' and 'label'"
+                end
+              end
+            end
+          end
+
+          { errors: errors, warnings: warnings }
+        end
+
+        # Extract configuration keys from hash format only
+        # Hash format: { FOO: { type: "string" }, BAR: { type: "string" } }
+        def extract_config_keys(manifest)
+          config = manifest.dig("extension", "configuration")
+          return [] unless config.is_a?(Hash)
+
+          config.keys.map(&:to_s)
         end
 
         def default_extension_id(name)
