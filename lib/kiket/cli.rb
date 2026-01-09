@@ -17,6 +17,7 @@ require_relative "commands/milestones"
 require_relative "commands/issues"
 require_relative "commands/intakes"
 require_relative "commands/audit"
+require_relative "commands/connections"
 
 module Kiket
   class CLI < Thor
@@ -72,6 +73,9 @@ module Kiket
 
     desc "audit SUBCOMMAND ...ARGS", "Blockchain audit verification"
     subcommand "audit", Commands::Audit
+
+    desc "connections SUBCOMMAND ...ARGS", "OAuth connections management"
+    subcommand "connections", Commands::Connections
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor
