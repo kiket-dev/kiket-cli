@@ -94,6 +94,58 @@ module Kiket
         handle_error(e)
       end
 
+      desc "export TYPE", "Export blockchain compliance report"
+      option :start, type: :string, required: true, desc: "Start date (YYYY-MM-DD)"
+      option :end_date, type: :string, required: true, desc: "End date (YYYY-MM-DD)"
+      option :output, type: :string, desc: "Output file path (defaults to report_TYPE_DATE.pdf)"
+      long_desc <<-LONGDESC
+        Export compliance reports with blockchain verification proofs.
+
+        Report types:
+          audit-trail - Full audit trail with Merkle proofs
+          eu-ai-act   - EU AI Act Article 12 compliance report
+
+        Examples:
+          $ kiket audit export audit-trail --start 2026-01-01 --end-date 2026-01-31
+          $ kiket audit export eu-ai-act --start 2026-01-01 --end-date 2026-06-30 --output my_report.pdf
+      LONGDESC
+      def export(report_type)
+        ensure_authenticated!
+
+        valid_types = %w[audit-trail eu-ai-act]
+        unless valid_types.include?(report_type)
+          error "Invalid report type: #{report_type}"
+          error "Valid types: #{valid_types.join(', ')}"
+          exit 1
+        end
+
+        spinner = spinner("Generating #{report_type} report...")
+        spinner.auto_spin
+
+        endpoint = case report_type
+        when "audit-trail"
+          "/api/v1/audit/reports/audit_trail.pdf"
+        when "eu-ai-act"
+          "/api/v1/audit/reports/eu_ai_act.pdf"
+        end
+
+        params = {
+          from: options[:start],
+          to: options[:end_date]
+        }
+
+        # Make raw request for binary PDF response
+        response = client.get_raw(endpoint, params: params)
+        spinner.success
+
+        output_path = options[:output] || "#{report_type.gsub('-', '_')}_#{Date.today}.pdf"
+        File.binwrite(output_path, response)
+
+        success "Report saved to #{output_path}"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       desc "status", "Show blockchain audit status for the organization"
       def status
         ensure_authenticated!
