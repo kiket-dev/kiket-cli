@@ -20,18 +20,20 @@ module Kiket
     end
 
     class Harness
-      def initialize(root:, include_workflows: true, include_dashboards: true, include_dbt: true, dbt_project_path: nil,
-                     run_dbt_cli: true)
+      def initialize(root:, include_workflows: true, include_dashboards: true, include_dbt: true, include_projects: true,
+                     dbt_project_path: nil, run_dbt_cli: true)
         @root = File.expand_path(root)
         @include_workflows = include_workflows
         @include_dashboards = include_dashboards
         @include_dbt = include_dbt
+        @include_projects = include_projects
         @dbt_project_path = dbt_project_path || default_dbt_project
         @run_dbt_cli = run_dbt_cli
       end
 
       def run
         results = []
+        results.concat(ProjectLinter.new(@root).lint) if @include_projects
         results.concat(WorkflowLinter.new(@root).lint) if @include_workflows
         results.concat(DashboardLinter.new(@root).lint) if @include_dashboards
         if @include_dbt
@@ -49,6 +51,93 @@ module Kiket
         # Fall back to root-level analytics project if invoked from repo root
         repo_candidate = File.expand_path(File.join(__dir__, "..", "..", "analytics", "dbt"))
         Dir.exist?(repo_candidate) ? repo_candidate : nil
+      end
+    end
+
+    class ProjectLinter
+      def initialize(root)
+        @root = root
+      end
+
+      def lint
+        files = Dir.glob(File.join(@root, "**", ".kiket", "project.y{a}ml"))
+        return [ info_result("projects", nil, "No project.yaml files found") ] if files.empty?
+
+        files.flat_map { |file| lint_file(file) }
+      end
+
+      private
+
+      def lint_file(file)
+        data = load_yaml(file)
+        return [ data ] if data.is_a?(Result) # error result
+
+        results = []
+
+        unless data.is_a?(Hash)
+          return [ error_result("projects", file, "YAML document must be an object") ]
+        end
+
+        model_version = data["model_version"]
+        results << error_result("projects", file, "Missing model_version") unless model_version
+
+        project = data["project"]
+        unless project.is_a?(Hash)
+          return results + [ error_result("projects", file, "Missing project root key") ]
+        end
+
+        %w[id name].each do |field|
+          results << error_result("projects", file, "project.#{field} is required") if project[field].to_s.strip.empty?
+        end
+
+        # Validate team roles are defined
+        team = project["team"]
+        if team.nil? || !team.is_a?(Hash)
+          results << warning_result("projects", file, "project.team section is not defined; consider adding team roles")
+        else
+          roles = team["roles"]
+          if roles.nil? || !roles.is_a?(Array) || roles.empty?
+            results << warning_result("projects", file, "project.team.roles is not defined; role dropdowns will fall back to 'member'")
+          else
+            roles.each_with_index do |role, idx|
+              unless role.is_a?(Hash)
+                results << error_result("projects", file, "Role ##{idx + 1} must be a mapping with 'name' field")
+                next
+              end
+
+              name = role["name"]
+              if name.to_s.strip.empty?
+                results << error_result("projects", file, "Role ##{idx + 1} missing 'name' field")
+              elsif !name.to_s.match?(/\A[a-zA-Z][a-zA-Z0-9_-]{0,49}\z/)
+                results << error_result("projects", file, "Role '#{name}' has invalid format; must start with letter, contain only letters/numbers/underscores/hyphens, max 50 chars")
+              end
+            end
+          end
+        end
+
+        results.empty? ? [ success_result("projects", file, "Project lint passed") ] : results
+      end
+
+      def load_yaml(file)
+        YAML.safe_load(File.read(file), aliases: true) || {}
+      rescue Psych::SyntaxError => e
+        error_result("projects", file, "YAML syntax error: #{e.message}")
+      end
+
+      def error_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :error)
+      end
+
+      def warning_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :warning)
+      end
+
+      def info_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :info)
+      end
+
+      def success_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :success)
       end
     end
 

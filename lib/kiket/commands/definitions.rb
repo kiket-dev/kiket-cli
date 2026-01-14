@@ -7,7 +7,8 @@ require_relative "../../kiket/definition_testing"
 module Kiket
   module Commands
     class Definitions < Base
-      desc "lint [PATH]", "Lint definition assets (workflows, dashboards, dbt)"
+      desc "lint [PATH]", "Lint definition assets (projects, workflows, dashboards, dbt)"
+      option :projects, type: :boolean, default: true, desc: "Include project.yaml linting"
       option :workflows, type: :boolean, default: true, desc: "Include workflow linting"
       option :dashboards, type: :boolean, default: true, desc: "Include dashboard linting"
       option :dbt, type: :boolean, default: true, desc: "Include dbt linting"
@@ -17,6 +18,7 @@ module Kiket
       def lint(path = ".")
         harness = DefinitionTesting::Harness.new(
           root: path,
+          include_projects: options[:projects],
           include_workflows: options[:workflows],
           include_dashboards: options[:dashboards],
           include_dbt: options[:dbt],

@@ -1,0 +1,13 @@
+model_version: "1.0"
+project:
+  id: sample
+  name: Sample Project
+  version: 1.0.0
+  description: Sample project for testing.
+
+  team:
+    roles:
+      - name: developer
+        description: Software developer
+      - name: qa
+        description: Quality assurance engineer

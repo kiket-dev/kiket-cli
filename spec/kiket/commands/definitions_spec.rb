@@ -26,6 +26,7 @@ RSpec.describe Kiket::Commands::Definitions do
           described_class.start([ "lint", dir, "--skip-dbt-cli" ])
         end
 
+        expect(output).to include("Project lint passed")
         expect(output).to include("Workflow lint passed")
         expect(output).to include("Dashboard lint passed")
         expect(output).to include("dbt lint passed")
