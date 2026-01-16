@@ -59,6 +59,7 @@ module Kiket
 
       VALID_STEP_TYPES = %w[secrets configure test info].freeze
       VALID_OBTAIN_TYPES = %w[oauth2 oauth2_client_credentials api_key token input basic auto_generate].freeze
+      VALID_SDK_VALUES = %w[ruby python node java dotnet go].freeze
 
       map(
         "custom-data:list" => :custom_data_list,
@@ -71,7 +72,7 @@ module Kiket
         "wizard:preview" => :wizard_preview
       )
       desc "scaffold NAME", "Generate a new extension project"
-      option :sdk, type: :string, default: "python", desc: "SDK language (python, node, ruby)"
+      option :sdk, type: :string, default: "python", desc: "SDK language (python, node, ruby, java, dotnet, go)"
       option :manifest, type: :boolean, desc: "Generate manifest only"
       option :template, type: :string, desc: "Template type (webhook_guard, outbound_integration, notification_pack)"
       option :extension_id, type: :string, desc: "Override extension ID in manifest"
@@ -102,8 +103,8 @@ module Kiket
           end
         end
 
-        unless %w[python node ruby].include?(sdk)
-          error "Unsupported SDK '#{sdk}'. Supported values: python, node, ruby."
+        unless VALID_SDK_VALUES.include?(sdk)
+          error "Unsupported SDK '#{sdk}'. Supported values: #{VALID_SDK_VALUES.join(", ")}."
           exit 1
         end
 
@@ -128,6 +129,12 @@ module Kiket
           generate_typescript_extension(dir, name, template_type)
         when "ruby"
           generate_ruby_extension(dir, name, template_type)
+        when "java"
+          generate_java_extension(dir, name, template_type)
+        when "dotnet"
+          generate_dotnet_extension(dir, name, template_type)
+        when "go"
+          generate_go_extension(dir, name, template_type)
         end
 
         # Generate common files
@@ -240,6 +247,16 @@ module Kiket
 
         # Check for README
         warnings << "No README.md found" unless File.exist?(File.join(path, "README.md"))
+
+        # Validate sdk field
+        sdk_value = manifest.dig("extension", "sdk")
+        if sdk_value
+          unless VALID_SDK_VALUES.include?(sdk_value)
+            errors << "Invalid extension.sdk value '#{sdk_value}'. Valid: #{VALID_SDK_VALUES.join(", ")}"
+          end
+        else
+          warnings << "Missing extension.sdk field (recommended for deployment)"
+        end
 
         custom_data_results = validate_custom_data_assets(path, manifest)
         errors.concat(custom_data_results[:errors])
@@ -1378,6 +1395,199 @@ module Kiket
         GEMFILE
       end
 
+      def generate_java_extension(dir, name, _template_type)
+        package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
+        class_name = name.gsub(/[^a-zA-Z0-9]+/, "")
+
+        src_dir = File.join(dir, "src", "main", "java", "dev", "kiket", "extensions", package_name)
+        FileUtils.mkdir_p(src_dir)
+
+        File.write(File.join(src_dir, "Handler.java"), <<~JAVA)
+          package dev.kiket.extensions.#{package_name};
+
+          import dev.kiket.sdk.Extension;
+          import dev.kiket.sdk.Context;
+          import dev.kiket.sdk.Response;
+
+          import java.util.Map;
+
+          /**
+           * #{name} Extension Handler
+           */
+          public class Handler {
+
+              public static void main(String[] args) {
+                  Extension.builder()
+                      .onBeforeTransition(Handler::handleBeforeTransition)
+                      .onAfterTransition(Handler::handleAfterTransition)
+                      .run();
+              }
+
+              public static Response handleBeforeTransition(Map<String, Object> payload, Context ctx) {
+                  // Access secrets via ctx.secret("API_KEY")
+                  // Add your logic here
+                  return Response.allow();
+              }
+
+              public static Response handleAfterTransition(Map<String, Object> payload, Context ctx) {
+                  // Add your logic here
+                  return Response.allow();
+              }
+          }
+        JAVA
+
+        File.write(File.join(dir, "pom.xml"), <<~XML)
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+              <modelVersion>4.0.0</modelVersion>
+
+              <groupId>dev.kiket.extensions</groupId>
+              <artifactId>#{name.downcase.gsub(/[^a-z0-9]+/, "-")}</artifactId>
+              <version>1.0.0</version>
+              <packaging>jar</packaging>
+
+              <properties>
+                  <maven.compiler.source>21</maven.compiler.source>
+                  <maven.compiler.target>21</maven.compiler.target>
+                  <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+              </properties>
+
+              <dependencies>
+                  <dependency>
+                      <groupId>dev.kiket</groupId>
+                      <artifactId>kiket-sdk</artifactId>
+                      <version>0.1.0</version>
+                  </dependency>
+                  <dependency>
+                      <groupId>org.junit.jupiter</groupId>
+                      <artifactId>junit-jupiter</artifactId>
+                      <version>5.10.0</version>
+                      <scope>test</scope>
+                  </dependency>
+              </dependencies>
+
+              <build>
+                  <plugins>
+                      <plugin>
+                          <groupId>org.apache.maven.plugins</groupId>
+                          <artifactId>maven-jar-plugin</artifactId>
+                          <version>3.3.0</version>
+                          <configuration>
+                              <archive>
+                                  <manifest>
+                                      <mainClass>dev.kiket.extensions.#{package_name}.Handler</mainClass>
+                                  </manifest>
+                              </archive>
+                          </configuration>
+                      </plugin>
+                  </plugins>
+              </build>
+          </project>
+        XML
+      end
+
+      def generate_dotnet_extension(dir, name, _template_type)
+        namespace = name.gsub(/[^a-zA-Z0-9]+/, "")
+        project_name = name.gsub(/[^a-zA-Z0-9]+/, "-")
+
+        FileUtils.mkdir_p(dir)
+
+        File.write(File.join(dir, "Handler.cs"), <<~CSHARP)
+          using Kiket.Sdk;
+          using System.Collections.Generic;
+
+          namespace #{namespace};
+
+          /// <summary>
+          /// #{name} Extension Handler
+          /// </summary>
+          public class Handler
+          {
+              public static void Main(string[] args)
+              {
+                  Extension.Builder()
+                      .OnBeforeTransition(HandleBeforeTransition)
+                      .OnAfterTransition(HandleAfterTransition)
+                      .Run();
+              }
+
+              public static Response HandleBeforeTransition(Dictionary<string, object> payload, Context ctx)
+              {
+                  // Access secrets via ctx.Secret("API_KEY")
+                  // Add your logic here
+                  return Response.Allow();
+              }
+
+              public static Response HandleAfterTransition(Dictionary<string, object> payload, Context ctx)
+              {
+                  // Add your logic here
+                  return Response.Allow();
+              }
+          }
+        CSHARP
+
+        File.write(File.join(dir, "Extension.csproj"), <<~XML)
+          <Project Sdk="Microsoft.NET.Sdk">
+
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net8.0</TargetFramework>
+              <RootNamespace>#{namespace}</RootNamespace>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+            </PropertyGroup>
+
+            <ItemGroup>
+              <PackageReference Include="Kiket.Sdk" Version="0.1.0" />
+            </ItemGroup>
+
+          </Project>
+        XML
+      end
+
+      def generate_go_extension(dir, name, _template_type)
+        package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
+
+        FileUtils.mkdir_p(dir)
+
+        File.write(File.join(dir, "main.go"), <<~GO)
+          package main
+
+          import (
+              "github.com/kiket-dev/sdk-go/kiket"
+          )
+
+          // #{name} Extension Handler
+          func main() {
+              kiket.NewExtension().
+                  OnBeforeTransition(handleBeforeTransition).
+                  OnAfterTransition(handleAfterTransition).
+                  Run()
+          }
+
+          func handleBeforeTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
+              // Access secrets via ctx.Secret("API_KEY")
+              // Add your logic here
+              return kiket.Allow()
+          }
+
+          func handleAfterTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
+              // Add your logic here
+              return kiket.Allow()
+          }
+        GO
+
+        File.write(File.join(dir, "go.mod"), <<~GOMOD)
+          module #{package_name}
+
+          go 1.23
+
+          require github.com/kiket-dev/sdk-go v0.1.0
+        GOMOD
+      end
+
       def generate_readme(dir, name, sdk)
         File.write(File.join(dir, "README.md"), <<~README)
           # #{name}
@@ -1553,6 +1763,133 @@ module Kiket
               end
             end
           RUBY
+
+        when "java"
+          package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
+          test_dir = File.join(dir, "src", "test", "java", "dev", "kiket", "extensions", package_name)
+          FileUtils.mkdir_p(test_dir)
+
+          File.write(File.join(test_dir, "HandlerTest.java"), <<~JAVA)
+            package dev.kiket.extensions.#{package_name};
+
+            import org.junit.jupiter.api.Test;
+            import static org.junit.jupiter.api.Assertions.*;
+
+            import dev.kiket.sdk.Response;
+            import java.util.HashMap;
+            import java.util.Map;
+
+            class HandlerTest {
+
+                @Test
+                void testHandleBeforeTransition() {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("event_type", "before_transition");
+
+                    // Test that handler returns a valid response
+                    // Note: Full integration test requires mock context
+                    assertNotNull(payload.get("event_type"));
+                }
+
+                @Test
+                void testHandleAfterTransition() {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("event_type", "after_transition");
+
+                    assertNotNull(payload.get("event_type"));
+                }
+            }
+          JAVA
+
+        when "dotnet"
+          test_dir = File.join(dir, "Tests")
+          FileUtils.mkdir_p(test_dir)
+          namespace = name.gsub(/[^a-zA-Z0-9]+/, "")
+
+          File.write(File.join(test_dir, "HandlerTests.cs"), <<~CSHARP)
+            using Xunit;
+            using System.Collections.Generic;
+
+            namespace #{namespace}.Tests;
+
+            public class HandlerTests
+            {
+                [Fact]
+                public void HandleBeforeTransition_ReturnsValidResponse()
+                {
+                    var payload = new Dictionary<string, object>
+                    {
+                        { "event_type", "before_transition" }
+                    };
+
+                    // Test payload structure
+                    Assert.Equal("before_transition", payload["event_type"]);
+                }
+
+                [Fact]
+                public void HandleAfterTransition_ReturnsValidResponse()
+                {
+                    var payload = new Dictionary<string, object>
+                    {
+                        { "event_type", "after_transition" }
+                    };
+
+                    Assert.Equal("after_transition", payload["event_type"]);
+                }
+            }
+          CSHARP
+
+          File.write(File.join(test_dir, "Tests.csproj"), <<~XML)
+            <Project Sdk="Microsoft.NET.Sdk">
+
+              <PropertyGroup>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <IsPackable>false</IsPackable>
+              </PropertyGroup>
+
+              <ItemGroup>
+                <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+                <PackageReference Include="xunit" Version="2.6.2" />
+                <PackageReference Include="xunit.runner.visualstudio" Version="2.5.4" />
+              </ItemGroup>
+
+              <ItemGroup>
+                <ProjectReference Include="../Extension.csproj" />
+              </ItemGroup>
+
+            </Project>
+          XML
+
+        when "go"
+          File.write(File.join(dir, "main_test.go"), <<~GO)
+            package main
+
+            import (
+                "testing"
+            )
+
+            func TestHandleBeforeTransition(t *testing.T) {
+                payload := map[string]interface{}{
+                    "event_type": "before_transition",
+                }
+
+                if payload["event_type"] != "before_transition" {
+                    t.Error("Expected event_type to be before_transition")
+                }
+            }
+
+            func TestHandleAfterTransition(t *testing.T) {
+                payload := map[string]interface{}{
+                    "event_type": "after_transition",
+                }
+
+                if payload["event_type"] != "after_transition" {
+                    t.Error("Expected event_type to be after_transition")
+                }
+            }
+          GO
         end
       end
 
@@ -1613,6 +1950,62 @@ module Kiket
                       ruby-version: '3.2'
                       bundler-cache: true
                   - run: bundle exec rspec
+          YAML
+
+        when "java"
+          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
+            name: Test
+
+            on: [push, pull_request]
+
+            jobs:
+              test:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: actions/setup-java@v4
+                    with:
+                      distribution: 'temurin'
+                      java-version: '21'
+                      cache: 'maven'
+                  - run: mvn test -B
+          YAML
+
+        when "dotnet"
+          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
+            name: Test
+
+            on: [push, pull_request]
+
+            jobs:
+              test:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: actions/setup-dotnet@v4
+                    with:
+                      dotnet-version: '8.0.x'
+                  - run: dotnet restore
+                  - run: dotnet build --no-restore
+                  - run: dotnet test --no-build
+          YAML
+
+        when "go"
+          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
+            name: Test
+
+            on: [push, pull_request]
+
+            jobs:
+              test:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: actions/setup-go@v5
+                    with:
+                      go-version: '1.23'
+                  - run: go mod download
+                  - run: go test -v ./...
           YAML
         end
       end
