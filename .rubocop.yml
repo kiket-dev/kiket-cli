@@ -1,7 +1,7 @@
 # Prevent inheritance from parent directory configs
-inherit_from: ~
+inherit_from: []
 
-require:
+plugins:
   - rubocop-rspec
 
 AllCops:
@@ -83,17 +83,17 @@ RSpec/MessageSpies:
 RSpec/StubbedMock:
   Enabled: false
 
-RSpec/FilePath:
+RSpec/SpecFilePathFormat:
   Enabled: false
 
-RSpec/SpecFilePathFormat:
+RSpec/SpecFilePathSuffix:
+  Enabled: false
+
+RSpec/PredicateMatcher:
   Enabled: false
 
 Lint/DuplicateBranch:
   Enabled: false
 
 Gemspec/RequiredRubyVersion:
-  Enabled: false
-
-Capybara/RSpec/PredicateMatcher:
   Enabled: false

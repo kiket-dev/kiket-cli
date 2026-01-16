@@ -127,13 +127,16 @@ kiket analytics report billing        # Generate billing report
 kiket analytics dashboard open        # Open dashboard in browser
 ```
 
-### Sandbox Commands
+### Sandbox Commands (Coming Soon)
+
+Sandbox infrastructure is under development. These commands will be available once the provisioning pipeline is complete.
 
 ```bash
 kiket sandbox launch PRODUCT                # Create sandbox
 kiket sandbox teardown SANDBOX_ID           # Delete sandbox
 kiket sandbox refresh-data SANDBOX_ID       # Refresh demo data
 kiket sandbox list                          # List sandboxes
+kiket sandbox extend SANDBOX_ID             # Extend sandbox expiration
 ```
 
 ### SLA Commands
@@ -185,6 +188,62 @@ kiket issues comments list ISSUE_KEY               # List comments
 kiket issues comments add ISSUE_KEY "My comment"   # Add a comment
 kiket issues comments update ISSUE_KEY 123 "New text"  # Update comment
 kiket issues comments delete ISSUE_KEY 123         # Delete comment
+```
+
+### Agents Commands
+
+```bash
+kiket agents list PROJECT_ID                      # List agent definitions
+kiket agents list PROJECT_ID --capability triage  # Filter by capability
+kiket agents execute AGENT_ID --project PROJECT   # Execute an agent
+kiket agents execute AGENT_ID --project PROJECT --stream  # Stream output
+kiket agents quota                                # Show AI quota and usage
+kiket agents catalog                              # List all available agents
+kiket agents catalog --category engineering       # Filter by category
+kiket agents actions --project PROJECT            # List AI actions
+kiket agents history                              # Show execution history
+kiket agents cancel EXECUTION_ID                  # Cancel running execution
+```
+
+### Intakes Commands
+
+```bash
+kiket intakes list --project PROJECT              # List intake forms
+kiket intakes list --project PROJECT --active     # Active forms only
+kiket intakes show FORM_KEY --project PROJECT     # Show form details
+kiket intakes submissions FORM_KEY --project PROJECT  # List submissions
+kiket intakes submission FORM_KEY ID --project PROJECT  # Show submission
+kiket intakes approve FORM_KEY ID --project PROJECT    # Approve submission
+kiket intakes reject FORM_KEY ID --project PROJECT     # Reject submission
+kiket intakes stats FORM_KEY --project PROJECT    # Show form statistics
+kiket intakes usage                               # Show usage limits
+```
+
+### Connections Commands
+
+```bash
+kiket connections list                  # List OAuth connections
+kiket connections list --status active  # Filter by status
+kiket connections show CONNECTION_ID    # Show connection details
+kiket connections disconnect ID         # Disconnect OAuth
+kiket connections refresh ID            # Refresh OAuth token
+kiket connections providers             # List OAuth providers
+kiket connections provider PROVIDER_ID  # Show provider details
+```
+
+### Audit Commands
+
+```bash
+kiket audit anchors                              # List blockchain anchors
+kiket audit anchors --status confirmed           # Filter by status
+kiket audit anchors --network polygon_mainnet    # Filter by network
+kiket audit proof RECORD_ID                      # Get blockchain proof
+kiket audit proof RECORD_ID --format file        # Save proof to file
+kiket audit verify proof.json                    # Verify a blockchain proof
+kiket audit verify --local proof.json            # Verify locally (no API)
+kiket audit export audit-trail --start DATE --end-date DATE  # Export audit trail PDF
+kiket audit export eu-ai-act --start DATE --end-date DATE    # Export EU AI Act report
+kiket audit status                               # Show blockchain audit status
 ```
 
 ### Doctor Commands

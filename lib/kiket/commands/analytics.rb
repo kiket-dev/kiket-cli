@@ -60,7 +60,7 @@ module Kiket
 
           table = TTY::Table.new(headers, rows)
           puts pastel.bold("Totals")
-          puts table.render(:unicode, padding: [ 0, 1 ])
+          puts table.render(:unicode, padding: [0, 1])
 
           unless series.empty?
             puts "\n#{pastel.bold("Daily Breakdown")}"
@@ -197,9 +197,7 @@ module Kiket
         response = client.get("/api/v1/projects/#{project_id}/queries", params: { organization: org })
         entries = response.fetch("queries", [])
 
-        if options[:tag]
-          entries = entries.select { |entry| Array(entry["tags"]).include?(options[:tag]) }
-        end
+        entries = entries.select { |entry| Array(entry["tags"]).include?(options[:tag]) } if options[:tag]
 
         if output_format == "human"
           if entries.empty?

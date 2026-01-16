@@ -89,13 +89,9 @@ module Kiket
           puts "Assignee: #{issue.dig("assignee", "name") || "Unassigned"}"
           puts "Due Date: #{issue["due_date"] || "Not set"}"
 
-          if issue["parent_id"]
-            puts "Parent: #{issue["parent_key"] || issue["parent_id"]}"
-          end
+          puts "Parent: #{issue["parent_key"] || issue["parent_id"]}" if issue["parent_id"]
 
-          if issue["labels"]&.any?
-            puts "Labels: #{issue["labels"].join(", ")}"
-          end
+          puts "Labels: #{issue["labels"].join(", ")}" if issue["labels"]&.any?
 
           if issue["custom_fields"]&.any?
             puts ""
@@ -339,7 +335,7 @@ module Kiket
 
           if output_format == "human"
             comments.each_with_index do |c, idx|
-              puts "" if idx > 0
+              puts "" if idx.positive?
               puts pastel.bold("##{c["id"]} by #{c.dig("author", "name") || "Unknown"}")
               puts pastel.dim(c["created_at"])
               puts c["body"]
@@ -398,11 +394,9 @@ module Kiket
         def delete(issue_key, comment_id)
           ensure_authenticated!
 
-          unless options[:force]
-            unless prompt.yes?("Delete comment ##{comment_id}? This cannot be undone.")
-              info "Cancelled"
-              return
-            end
+          if !options[:force] && !prompt.yes?("Delete comment ##{comment_id}? This cannot be undone.")
+            info "Cancelled"
+            return
           end
 
           spinner = spinner("Deleting comment...")

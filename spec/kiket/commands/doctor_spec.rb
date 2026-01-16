@@ -29,18 +29,18 @@ RSpec.describe Kiket::Commands::Doctor do
     expect(client).to receive(:get)
       .with("/api/v1/diagnostics", params: hash_including(organization_id: "org-1"))
       .and_return({
-        "extensions" => [
-          {
-            "extension_id" => "dev.test",
-            "extension_name" => "Diag",
-            "status" => "failed",
-            "error" => "401",
-            "recommendation" => "Reset token"
-          }
-        ],
-        "definitions" => []
-      })
+                    "extensions" => [
+                      {
+                        "extension_id" => "dev.test",
+                        "extension_name" => "Diag",
+                        "status" => "failed",
+                        "error" => "401",
+                        "recommendation" => "Reset token"
+                      }
+                    ],
+                    "definitions" => []
+                  })
 
-    expect { described_class.start([ "run", "--extensions" ]) }.to output(/Reset token/).to_stdout
+    expect { described_class.start(["run", "--extensions"]) }.to output(/Reset token/).to_stdout
   end
 end

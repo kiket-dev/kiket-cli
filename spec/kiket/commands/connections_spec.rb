@@ -194,12 +194,12 @@ RSpec.describe Kiket::Commands::Connections do
       expect(client).to receive(:post).with(
         "/api/v1/oauth/connections/1/refresh"
       ).and_return({
-        "connection" => {
-          "id" => 1,
-          "status" => "active",
-          "expires_at" => "2026-03-01T10:00:00Z"
-        }
-      })
+                     "connection" => {
+                       "id" => 1,
+                       "status" => "active",
+                       "expires_at" => "2026-03-01T10:00:00Z"
+                     }
+                   })
 
       output = capture_stdout do
         described_class.start(%w[refresh 1])

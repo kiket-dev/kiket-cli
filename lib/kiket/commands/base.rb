@@ -89,7 +89,7 @@ module Kiket
           require "csv"
           return if data.empty?
 
-          rows = data.is_a?(Array) ? data : [ data ]
+          rows = data.is_a?(Array) ? data : [data]
           headers ||= rows.first.keys
 
           CSV.generate do |csv|
@@ -103,11 +103,11 @@ module Kiket
         def output_table(data, headers:)
           return puts "No data" if data.empty?
 
-          rows = data.is_a?(Array) ? data : [ data ]
+          rows = data.is_a?(Array) ? data : [data]
           headers ||= rows.first.keys
 
           table = TTY::Table.new(headers, rows.map { |row| headers.map { |h| row[h] } })
-          puts table.render(:unicode, padding: [ 0, 1 ])
+          puts table.render(:unicode, padding: [0, 1])
         end
 
         def handle_error(error)

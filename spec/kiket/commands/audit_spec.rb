@@ -10,14 +10,14 @@ RSpec.describe Kiket::Commands::Audit do
   let(:client) { instance_double(Kiket::Client) }
   let(:spinner_double) { instance_double(TTY::Spinner, auto_spin: true, success: true) }
 
-  before(:each) do
+  before do
     Kiket.reset!
     Kiket.instance_variable_set(:@config, config)
     allow(Kiket).to receive(:client).and_return(client)
     allow(TTY::Spinner).to receive(:new).and_return(spinner_double)
   end
 
-  after(:each) do
+  after do
     Kiket.reset!
   end
 
@@ -78,7 +78,7 @@ RSpec.describe Kiket::Commands::Audit do
         "leaf_index" => 5,
         "merkle_root" => "0xrootabc123",
         "tx_hash" => "0xtxhash456",
-        "block_number" => 12345,
+        "block_number" => 12_345,
         "network" => "polygon_amoy"
       }
     end
@@ -116,7 +116,7 @@ RSpec.describe Kiket::Commands::Audit do
     let(:proof_data) do
       {
         "content_hash" => "0x1234567890abcdef",
-        "proof" => ["0xaaa111", "0xbbb222"],
+        "proof" => %w[0xaaa111 0xbbb222],
         "leaf_index" => 5,
         "merkle_root" => "0xrootabc123"
       }
@@ -128,7 +128,7 @@ RSpec.describe Kiket::Commands::Audit do
         "proof_valid" => true,
         "blockchain_verified" => true,
         "network" => "polygon_amoy",
-        "block_number" => 12345,
+        "block_number" => 12_345,
         "block_timestamp" => "2026-01-15T10:00:00Z",
         "explorer_url" => "https://amoy.polygonscan.com/tx/0x123"
       }
@@ -150,9 +150,9 @@ RSpec.describe Kiket::Commands::Audit do
 
     it "handles invalid proof response" do
       expect(client).to receive(:post).and_return({
-        "verified" => false,
-        "error" => "Proof path does not match merkle root"
-      })
+                                                    "verified" => false,
+                                                    "error" => "Proof path does not match merkle root"
+                                                  })
 
       Dir.mktmpdir do |dir|
         proof_file = File.join(dir, "proof.json")
@@ -168,10 +168,10 @@ RSpec.describe Kiket::Commands::Audit do
 
     it "verifies locally without API call" do
       local_proof = {
-        "content_hash" => "0x" + ("a" * 64),
+        "content_hash" => "0x#{"a" * 64}",
         "proof" => [],
         "leaf_index" => 0,
-        "merkle_root" => "0x" + ("a" * 64)
+        "merkle_root" => "0x#{"a" * 64}"
       }
 
       Dir.mktmpdir do |dir|
@@ -207,11 +207,11 @@ RSpec.describe Kiket::Commands::Audit do
         output_path = File.join(dir, "audit_report.pdf")
         output = capture_stdout do
           described_class.start([
-            "export", "audit-trail",
-            "--start", "2026-01-01",
-            "--end-date", "2026-01-31",
-            "--output", output_path
-          ])
+                                  "export", "audit-trail",
+                                  "--start", "2026-01-01",
+                                  "--end-date", "2026-01-31",
+                                  "--output", output_path
+                                ])
         end
 
         expect(output).to include("Report saved to")
@@ -230,11 +230,11 @@ RSpec.describe Kiket::Commands::Audit do
         output_path = File.join(dir, "eu_ai_act.pdf")
         output = capture_stdout do
           described_class.start([
-            "export", "eu-ai-act",
-            "--start", "2026-01-01",
-            "--end-date", "2026-06-30",
-            "--output", output_path
-          ])
+                                  "export", "eu-ai-act",
+                                  "--start", "2026-01-01",
+                                  "--end-date", "2026-06-30",
+                                  "--output", output_path
+                                ])
         end
 
         expect(output).to include("Report saved to")
@@ -243,13 +243,13 @@ RSpec.describe Kiket::Commands::Audit do
 
     it "rejects invalid report type" do
       output = capture_stdout do
-        expect {
+        expect do
           described_class.start([
-            "export", "invalid-type",
-            "--start", "2026-01-01",
-            "--end-date", "2026-01-31"
-          ])
-        }.to raise_error(SystemExit)
+                                  "export", "invalid-type",
+                                  "--start", "2026-01-01",
+                                  "--end-date", "2026-01-31"
+                                ])
+        end.to raise_error(SystemExit)
       end
 
       expect(output).to include("Invalid report type")
@@ -261,9 +261,12 @@ RSpec.describe Kiket::Commands::Audit do
     it "shows blockchain audit status summary" do
       status_response = {
         "anchors" => [
-          { "id" => 1, "status" => "confirmed", "merkle_root" => "0xabc...", "leaf_count" => 42, "network" => "polygon_amoy", "explorer_url" => "https://amoy.polygonscan.com/tx/0x123" },
-          { "id" => 2, "status" => "confirmed", "merkle_root" => "0xdef...", "leaf_count" => 38, "network" => "polygon_amoy" },
-          { "id" => 3, "status" => "pending", "merkle_root" => "0xghi...", "leaf_count" => 25, "network" => "polygon_amoy" }
+          { "id" => 1, "status" => "confirmed", "merkle_root" => "0xabc...", "leaf_count" => 42,
+            "network" => "polygon_amoy", "explorer_url" => "https://amoy.polygonscan.com/tx/0x123" },
+          { "id" => 2, "status" => "confirmed", "merkle_root" => "0xdef...", "leaf_count" => 38,
+            "network" => "polygon_amoy" },
+          { "id" => 3, "status" => "pending", "merkle_root" => "0xghi...", "leaf_count" => 25,
+            "network" => "polygon_amoy" }
         ]
       }
 

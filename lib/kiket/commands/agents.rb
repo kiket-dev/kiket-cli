@@ -95,14 +95,14 @@ module Kiket
             used = usage_data[feature] || 0
             remaining = limit == "unlimited" ? "unlimited" : [limit.to_i - used, 0].max
             status = if limit == "unlimited"
-              pastel.green("OK")
-            elsif used >= limit.to_i
-              pastel.red("EXCEEDED")
-            elsif used >= limit.to_i * 0.8
-              pastel.yellow("APPROACHING")
-            else
-              pastel.green("OK")
-            end
+                       pastel.green("OK")
+                     elsif used >= limit.to_i
+                       pastel.red("EXCEEDED")
+                     elsif used >= limit.to_i * 0.8
+                       pastel.yellow("APPROACHING")
+                     else
+                       pastel.green("OK")
+                     end
 
             {
               feature: feature,
@@ -116,8 +116,8 @@ module Kiket
           output_data(rows, headers: %i[feature limit used remaining status])
 
           puts ""
-          puts "Plan: #{response.dig('plan', 'name') || 'Unknown'}"
-          puts "Billing period: #{response['billing_period'] || 'Monthly'}"
+          puts "Plan: #{response.dig("plan", "name") || "Unknown"}"
+          puts "Billing period: #{response["billing_period"] || "Monthly"}"
         else
           output_data(response, headers: nil)
         end
@@ -134,9 +134,7 @@ module Kiket
         response = client.get("/api/v1/ai/agents", params: { organization: org }.compact)
         entries = response.fetch("agents", [])
 
-        if options[:category]
-          entries = entries.select { |e| e.dig("metadata", "category") == options[:category] }
-        end
+        entries = entries.select { |e| e.dig("metadata", "category") == options[:category] } if options[:category]
 
         if output_format == "human"
           if entries.empty?
@@ -201,8 +199,8 @@ module Kiket
           output_data(rows, headers: %i[id name description category cost_tier])
 
           puts ""
-          puts "Categories: #{response.fetch('categories', []).join(', ')}"
-          puts "Capabilities: #{response.fetch('capabilities', []).join(', ')}"
+          puts "Categories: #{response.fetch("categories", []).join(", ")}"
+          puts "Capabilities: #{response.fetch("capabilities", []).join(", ")}"
         else
           output_data(response, headers: nil)
         end
@@ -257,8 +255,8 @@ module Kiket
         if output_format == "human"
           puts ""
           puts pastel.bold("Execution Result:")
-          puts "  Status: #{colorize_status(response['status'])}"
-          puts "  Execution ID: #{response['execution_id']}"
+          puts "  Status: #{colorize_status(response["status"])}"
+          puts "  Execution ID: #{response["execution_id"]}"
 
           if response["output"]
             puts ""
@@ -269,8 +267,8 @@ module Kiket
 
           if response["metadata"]
             puts ""
-            puts "Duration: #{response.dig('metadata', 'duration_ms') || 'N/A'}ms"
-            puts "Tokens: #{response.dig('metadata', 'token_count') || 'N/A'}"
+            puts "Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms"
+            puts "Tokens: #{response.dig("metadata", "token_count") || "N/A"}"
           end
         else
           output_data(response, headers: nil)
@@ -319,7 +317,7 @@ module Kiket
               status: colorize_status(entry["status"]),
               project: entry.dig("project", "name") || "-",
               user: entry.dig("user", "name") || "-",
-              duration: entry["duration_ms"] ? "#{entry['duration_ms']}ms" : "-",
+              duration: entry["duration_ms"] ? "#{entry["duration_ms"]}ms" : "-",
               created_at: format_time(entry["created_at"])
             }
           end
@@ -329,7 +327,7 @@ module Kiket
           pagination = response["pagination"]
           if pagination
             puts ""
-            puts "Showing #{entries.size} of #{pagination['total']} executions (page #{pagination['page']})"
+            puts "Showing #{entries.size} of #{pagination["total"]} executions (page #{pagination["page"]})"
           end
         else
           output_data(response, headers: nil)
@@ -367,7 +365,7 @@ module Kiket
       no_commands do
         def format_endpoints(endpoints)
           Array(endpoints).map do |endpoint|
-            [ endpoint["name"], endpoint["type"] ].compact.join(" (") + (endpoint["type"] ? ")" : "")
+            [endpoint["name"], endpoint["type"]].compact.join(" (") + (endpoint["type"] ? ")" : "")
           end.join(", ")
         end
 
@@ -401,8 +399,8 @@ module Kiket
             puts pastel.bold("Result:")
             puts response.fetch("output", response)
             puts ""
-            puts "Tokens: #{response.dig('metadata', 'tokens') || 'N/A'}"
-            puts "Duration: #{response.dig('metadata', 'duration_ms') || 'N/A'}ms"
+            puts "Tokens: #{response.dig("metadata", "tokens") || "N/A"}"
+            puts "Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms"
           else
             output_data(response, headers: nil)
           end
@@ -425,6 +423,7 @@ module Kiket
 
         def truncate_text(text, length)
           return "-" if text.nil? || text.empty?
+
           text.length > length ? "#{text[0...length]}..." : text
         end
 
@@ -447,6 +446,7 @@ module Kiket
 
         def format_time(iso_time)
           return "-" unless iso_time
+
           Time.parse(iso_time).strftime("%Y-%m-%d %H:%M")
         rescue StandardError
           iso_time

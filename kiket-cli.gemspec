@@ -5,8 +5,8 @@ require_relative "lib/kiket/version"
 Gem::Specification.new do |spec|
   spec.name = "kiket-cli"
   spec.version = Kiket::VERSION
-  spec.authors = [ "Kiket Team" ]
-  spec.email = [ "team@kiket.dev" ]
+  spec.authors = ["Kiket Team"]
+  spec.email = ["team@kiket.dev"]
 
   spec.summary = "Official CLI for Kiket workflow automation platform"
   spec.description = "Command-line interface for managing Kiket marketplace products, extensions, " \
@@ -23,8 +23,8 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir.glob("{bin,lib,exe}/**/*") + %w[LICENSE README.md]
   spec.bindir = "bin"
-  spec.executables = [ "kiket" ]
-  spec.require_paths = [ "lib" ]
+  spec.executables = ["kiket"]
+  spec.require_paths = ["lib"]
 
   # CLI framework
   spec.add_dependency "thor", "~> 1.3"
@@ -45,8 +45,8 @@ Gem::Specification.new do |spec|
   # Development dependencies
   spec.add_development_dependency "pry", "~> 0.14"
   spec.add_development_dependency "rspec", "~> 3.12"
-  spec.add_development_dependency "rubocop", "~> 1.50"
-  spec.add_development_dependency "rubocop-rspec", "~> 2.20"
+  spec.add_development_dependency "rubocop", "~> 1.80"
+  spec.add_development_dependency "rubocop-rspec", "~> 3.0"
   spec.add_development_dependency "vcr", "~> 6.1"
   spec.add_development_dependency "webmock", "~> 3.18"
 end

@@ -164,16 +164,16 @@ module Kiket
 
           connections.each do |conn|
             status_color = case conn["status"]
-            when "active" then :green
-            when "expired" then :red
-            else :yellow
-            end
+                           when "active" then :green
+                           when "expired" then :red
+                           else :yellow
+                           end
 
             status_icon = case conn["status"]
-            when "active" then "✓"
-            when "expired" then "✗"
-            else "?"
-            end
+                          when "active" then "✓"
+                          when "expired" then "✗"
+                          else "?"
+                          end
 
             puts pastel.send(status_color, "#{status_icon} #{conn["provider_name"] || conn["provider_id"]}")
             puts "    ID: #{conn["id"]}"
@@ -182,9 +182,7 @@ module Kiket
             puts "    Connected: #{format_time(conn["connected_at"])}" if conn["connected_at"]
 
             consumers = conn["consumer_extensions"] || []
-            if consumers.any?
-              puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}"
-            end
+            puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}" if consumers.any?
 
             puts ""
           end
@@ -243,9 +241,7 @@ module Kiket
             puts "    ID: #{prov["id"]}"
 
             required_by = prov["required_by"] || []
-            if required_by.any?
-              puts "    Required by: #{required_by.join(", ")}"
-            end
+            puts "    Required by: #{required_by.join(", ")}" if required_by.any?
 
             puts ""
           end

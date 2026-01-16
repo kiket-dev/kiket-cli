@@ -157,7 +157,7 @@ RSpec.describe Kiket::Commands::Milestones do
       ).and_return(created_milestone)
 
       output = capture_stdout do
-        described_class.start(%w[create 20 --name New\ Milestone])
+        described_class.start(["create", "20", "--name", "New Milestone"])
       end
 
       expect(output).to include("Created milestone")
@@ -178,23 +178,23 @@ RSpec.describe Kiket::Commands::Milestones do
           }
         }
       ).and_return({
-        "milestone" => {
-          "id" => 6,
-          "name" => "Full Milestone",
-          "status" => "active",
-          "target_date" => "2026-06-30"
-        }
-      })
+                     "milestone" => {
+                       "id" => 6,
+                       "name" => "Full Milestone",
+                       "status" => "active",
+                       "target_date" => "2026-06-30"
+                     }
+                   })
 
       output = capture_stdout do
         described_class.start([
-          "create", "20",
-          "--name", "Full Milestone",
-          "--description", "A complete milestone",
-          "--target-date", "2026-06-30",
-          "--status", "active",
-          "--version", "v2.0.0"
-        ])
+                                "create", "20",
+                                "--name", "Full Milestone",
+                                "--description", "A complete milestone",
+                                "--target-date", "2026-06-30",
+                                "--status", "active",
+                                "--version", "v2.0.0"
+                              ])
       end
 
       expect(output).to include("Created milestone")
@@ -223,7 +223,7 @@ RSpec.describe Kiket::Commands::Milestones do
       ).and_return(updated_milestone)
 
       output = capture_stdout do
-        described_class.start(%w[update 20 1 --name Updated\ Name])
+        described_class.start(["update", "20", "1", "--name", "Updated Name"])
       end
 
       expect(output).to include("Updated milestone")
@@ -237,13 +237,13 @@ RSpec.describe Kiket::Commands::Milestones do
           milestone: { status: "completed" }
         }
       ).and_return({
-        "milestone" => {
-          "id" => 1,
-          "name" => "Q1 Release",
-          "status" => "completed",
-          "progress" => 100
-        }
-      })
+                     "milestone" => {
+                       "id" => 1,
+                       "name" => "Q1 Release",
+                       "status" => "completed",
+                       "progress" => 100
+                     }
+                   })
 
       output = capture_stdout do
         described_class.start(%w[update 20 1 --status completed])

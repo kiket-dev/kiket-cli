@@ -202,26 +202,26 @@ RSpec.describe Kiket::Commands::Issues do
           }
         }
       ).and_return({
-        "id" => 6,
-        "key" => "PROJ-6",
-        "title" => "Full Issue",
-        "status" => "in_progress",
-        "issue_type" => "bug",
-        "priority" => "high"
-      })
+                     "id" => 6,
+                     "key" => "PROJ-6",
+                     "title" => "Full Issue",
+                     "status" => "in_progress",
+                     "issue_type" => "bug",
+                     "priority" => "high"
+                   })
 
       output = capture_stdout do
         described_class.start([
-          "create", "20",
-          "--title", "Full Issue",
-          "--description", "A complete issue",
-          "--type", "bug",
-          "--priority", "high",
-          "--status", "in_progress",
-          "--assignee", "5",
-          "--due-date", "2026-01-15",
-          "--labels", "urgent", "security"
-        ])
+                                "create", "20",
+                                "--title", "Full Issue",
+                                "--description", "A complete issue",
+                                "--type", "bug",
+                                "--priority", "high",
+                                "--status", "in_progress",
+                                "--assignee", "5",
+                                "--due-date", "2026-01-15",
+                                "--labels", "urgent", "security"
+                              ])
       end
 
       expect(output).to include("Created issue")
@@ -263,12 +263,12 @@ RSpec.describe Kiket::Commands::Issues do
           issue: { priority: "highest" }
         }
       ).and_return({
-        "id" => 1,
-        "key" => "PROJ-1",
-        "title" => "Fix login bug",
-        "status" => "in_progress",
-        "priority" => "highest"
-      })
+                     "id" => 1,
+                     "key" => "PROJ-1",
+                     "title" => "Fix login bug",
+                     "status" => "in_progress",
+                     "priority" => "highest"
+                   })
 
       output = capture_stdout do
         described_class.start(%w[update PROJ-1 --priority highest])
@@ -295,11 +295,11 @@ RSpec.describe Kiket::Commands::Issues do
           transition: { state: "done" }
         }
       ).and_return({
-        "id" => 1,
-        "key" => "PROJ-1",
-        "title" => "Fix login bug",
-        "status" => "done"
-      })
+                     "id" => 1,
+                     "key" => "PROJ-1",
+                     "title" => "Fix login bug",
+                     "status" => "done"
+                   })
 
       output = capture_stdout do
         described_class.start(%w[transition PROJ-1 done])
@@ -406,20 +406,20 @@ RSpec.describe Kiket::Commands::Issues do
           )
         }
       ).and_return({
-        "id" => 7,
-        "key" => "PROJ-7",
-        "title" => "Issue with fields",
-        "status" => "backlog",
-        "issue_type" => "task",
-        "priority" => "medium"
-      })
+                     "id" => 7,
+                     "key" => "PROJ-7",
+                     "title" => "Issue with fields",
+                     "status" => "backlog",
+                     "issue_type" => "task",
+                     "priority" => "medium"
+                   })
 
       output = capture_stdout do
         described_class.start([
-          "create", "20",
-          "--title", "Issue with fields",
-          "--custom-fields", '{"sprint":"Sprint 1"}'
-        ])
+                                "create", "20",
+                                "--title", "Issue with fields",
+                                "--custom-fields", '{"sprint":"Sprint 1"}'
+                              ])
       end
 
       expect(output).to include("Created issue")

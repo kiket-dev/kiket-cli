@@ -163,7 +163,7 @@ module Kiket
 
         name = options[:name] || File.basename(dir)
         generate_manifest(dir, name, options[:template], extension_id: options[:extension_id])
-        success "Manifest created at #{File.join(dir, '.kiket/manifest.yaml')}"
+        success "Manifest created at #{File.join(dir, ".kiket/manifest.yaml")}"
       rescue StandardError => e
         handle_error(e)
       end
@@ -189,9 +189,7 @@ module Kiket
         warnings = []
 
         # Validate model_version
-        unless manifest["model_version"]
-          warnings << "Missing model_version (recommended: \"1.0\")"
-        end
+        warnings << "Missing model_version (recommended: \"1.0\")" unless manifest["model_version"]
 
         # Require nested extension block (canonical format)
         unless manifest["extension"].is_a?(Hash)
@@ -224,9 +222,7 @@ module Kiket
 
           if delivery == "http"
             callback = manifest.dig("extension", "callback")
-            unless callback.is_a?(Hash)
-              errors << "extension.callback block required for HTTP delivery"
-            end
+            errors << "extension.callback block required for HTTP delivery" unless callback.is_a?(Hash)
 
             callback_url = callback&.dig("url")
             errors << "Missing extension.callback.url" unless callback_url
@@ -272,13 +268,13 @@ module Kiket
         # Run SDK-specific linting
         if File.exist?(File.join(path, "requirements.txt"))
           info "Running Python linting..."
-          args = [ "ruff", "check", "." ]
+          args = ["ruff", "check", "."]
           args << "--fix" if options[:fix]
           system(*args, chdir: path)
         elsif File.exist?(File.join(path, "package.json"))
           info "Running TypeScript linting..."
-          args = [ "npm", "run", "lint" ]
-          args.concat([ "--", "--fix" ]) if options[:fix]
+          args = %w[npm run lint]
+          args.push("--", "--fix") if options[:fix]
           system(*args, chdir: path)
         end
       rescue StandardError => e
@@ -316,7 +312,7 @@ module Kiket
 
       desc "replay", "Replay a recorded payload against a local extension endpoint"
       option :payload, type: :string, desc: "Path to JSON payload (defaults to STDIN)"
-      option :template, type: :string, desc: "Built-in template (#{REPLAY_TEMPLATES.keys.join(', ')})"
+      option :template, type: :string, desc: "Built-in template (#{REPLAY_TEMPLATES.keys.join(", ")})"
       option :url, type: :string, default: "http://localhost:8080/webhook", desc: "Destination URL"
       option :method, type: :string, default: "POST", desc: "HTTP method"
       option :header, type: :array, desc: "Custom headers (KEY=VALUE)"
@@ -362,7 +358,7 @@ module Kiket
         end
 
         # Run lint
-        invoke :lint, [ path ]
+        invoke :lint, [path]
 
         # Check for git repository
         unless Dir.exist?(File.join(path, ".git"))
@@ -450,11 +446,11 @@ module Kiket
         end
 
         # Validate extension
-        invoke :validate, [ path ]
+        invoke :validate, [path]
 
         # Run tests
         info "Running tests before publish..."
-        invoke :test, [ path ]
+        invoke :test, [path]
 
         require "yaml"
         require "open3"
@@ -530,9 +526,9 @@ module Kiket
 
             checks << if manifest.dig("extension", "id")
                         { name: "Extension ID", status: :ok, message: manifest.dig("extension", "id") }
-            else
+                      else
                         { name: "Extension ID", status: :error, message: "Missing" }
-            end
+                      end
           rescue StandardError => e
             checks << { name: "Manifest syntax", status: :error, message: e.message }
           end
@@ -562,24 +558,24 @@ module Kiket
                      Dir.glob("#{path}/{test,spec,tests}/**/*_spec.{py,rb,js,ts}")
         checks << if test_files.any?
                     { name: "Tests", status: :ok, message: "#{test_files.size} test files found" }
-        else
+                  else
                     { name: "Tests", status: :warning, message: "No test files found" }
-        end
+                  end
 
         # Check for documentation
         checks << if File.exist?(File.join(path, "README.md"))
                     { name: "Documentation", status: :ok, message: "README.md present" }
-        else
+                  else
                     { name: "Documentation", status: :warning, message: "No README.md" }
-        end
+                  end
 
         # Display results
         checks.each do |check|
           icon = case check[:status]
-          when :ok then pastel.green("✓")
-          when :warning then pastel.yellow("⚠")
-          when :error then pastel.red("✗")
-          end
+                 when :ok then pastel.green("✓")
+                 when :warning then pastel.yellow("⚠")
+                 when :error then pastel.red("✗")
+                 end
           puts "#{icon} #{check[:name]}: #{check[:message]}"
         end
 
@@ -637,8 +633,8 @@ module Kiket
           step_config = step[step_type]
 
           puts pastel.cyan("Step #{index + 1}: #{step_type.upcase}")
-          puts "  Title: #{step_config['title']}" if step_config["title"]
-          puts "  Description: #{step_config['description']}" if step_config["description"]
+          puts "  Title: #{step_config["title"]}" if step_config["title"]
+          puts "  Description: #{step_config["description"]}" if step_config["description"]
 
           case step_type
           when "secrets"
@@ -647,8 +643,8 @@ module Kiket
             fields.each do |field|
               obtain_type = field.dig("obtain", "type") || "input"
               secret = field.dig("obtain", "secret") ? " 🔒" : ""
-              puts "    - #{field['key']} (#{obtain_type})#{secret}"
-              puts "      Label: #{field['label']}" if field["label"]
+              puts "    - #{field["key"]} (#{obtain_type})#{secret}"
+              puts "      Label: #{field["label"]}" if field["label"]
             end
 
           when "configure"
@@ -657,13 +653,13 @@ module Kiket
             fields.each do |field|
               required = field["required"] ? " *" : ""
               show_when = field["showWhen"] ? " [conditional]" : ""
-              puts "    - #{field['key']} (#{field['type'] || 'text'})#{required}#{show_when}"
-              puts "      Label: #{field['label']}" if field["label"]
+              puts "    - #{field["key"]} (#{field["type"] || "text"})#{required}#{show_when}"
+              puts "      Label: #{field["label"]}" if field["label"]
             end
 
           when "test"
-            puts "  Action: #{step_config['action']}" if step_config["action"]
-            puts "  Success message: #{step_config['successMessage']}" if step_config["successMessage"]
+            puts "  Action: #{step_config["action"]}" if step_config["action"]
+            puts "  Success message: #{step_config["successMessage"]}" if step_config["successMessage"]
 
           when "info"
             content = step_config["content"] || ""
@@ -674,7 +670,7 @@ module Kiket
             if links.any?
               puts "  Links:"
               links.each do |link|
-                puts "    - #{link['label']}: #{link['url']}"
+                puts "    - #{link["label"]}: #{link["url"]}"
               end
             end
           end
@@ -730,7 +726,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([ row ], headers: row.keys)
+        output_data([row], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -749,7 +745,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([ row ], headers: row.keys)
+        output_data([row], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -768,7 +764,7 @@ module Kiket
         )
 
         row = response.fetch("data")
-        output_data([ row ], headers: row.keys)
+        output_data([row], headers: row.keys)
       rescue StandardError => e
         handle_error(e)
       end
@@ -798,6 +794,7 @@ module Kiket
           secrets.each do |meta|
             detail = client.get("/api/v1/extensions/#{extension_id}/secrets/#{meta["key"]}")
             next unless detail["value"]
+
             file.puts "#{meta["key"]}=#{detail["value"]}"
           end
         end
@@ -838,7 +835,10 @@ module Kiket
         def detect_python_test_runner(path)
           poetry = poetry_project?(path)
           pipenv = pipenv_project?(path)
-          return nil unless poetry || pipenv || File.exist?(File.join(path, "requirements.txt")) || File.exist?(File.join(path, "pyproject.toml"))
+          return nil unless poetry || pipenv || File.exist?(File.join(path,
+                                                                      "requirements.txt")) || File.exist?(File.join(
+                                                                                                            path, "pyproject.toml"
+                                                                                                          ))
 
           command = [
             "cd #{path} &&",
@@ -947,7 +947,8 @@ module Kiket
         end
 
         def poetry_project?(path)
-          File.exist?(File.join(path, "poetry.lock")) || file_contains?(File.join(path, "pyproject.toml"), "[tool.poetry]")
+          File.exist?(File.join(path,
+                                "poetry.lock")) || file_contains?(File.join(path, "pyproject.toml"), "[tool.poetry]")
         end
 
         def pipenv_project?(path)
@@ -992,7 +993,7 @@ module Kiket
             "retries" => 3
           },
           "hooks" => generate_hooks_for_template(template_type),
-          "permissions" => [ "read:issues", "write:issues" ],
+          "permissions" => ["read:issues", "write:issues"],
           "configuration" => {
             "fields" => []
           }
@@ -1171,9 +1172,9 @@ module Kiket
       def generate_hooks_for_template(template_type)
         case template_type
         when "webhook_guard"
-          [ "before_transition" ]
+          ["before_transition"]
         when "outbound_integration"
-          [ "after_transition" ]
+          ["after_transition"]
         when "notification_pack"
           %w[after_transition issue_created issue_updated]
         else
@@ -1422,7 +1423,7 @@ module Kiket
       end
 
       def generate_gitignore(dir)
-    File.write(File.join(dir, ".gitignore"), <<~GITIGNORE)
+        File.write(File.join(dir, ".gitignore"), <<~GITIGNORE)
           # Dependencies
           node_modules/
           __pycache__/
@@ -1457,23 +1458,23 @@ module Kiket
       end
 
       def generate_env_example(dir)
-    File.write(File.join(dir, ".env.example"), <<~ENVFILE)
-      # Example secrets - copy to .env and update values
-      # Use `kiket extensions secrets push <extension_id> --env-file .env`
-      SAMPLE_API_TOKEN=replace_me
-      SAMPLE_WEBHOOK_SECRET=replace_me
+        File.write(File.join(dir, ".env.example"), <<~ENVFILE)
+          # Example secrets - copy to .env and update values
+          # Use `kiket extensions secrets push <extension_id> --env-file .env`
+          SAMPLE_API_TOKEN=replace_me
+          SAMPLE_WEBHOOK_SECRET=replace_me
         ENVFILE
       end
 
       def generate_replay_samples(dir, template_type)
-    replay_dir = File.join(dir, "replay")
-    FileUtils.mkdir_p(replay_dir)
-    REPLAY_TEMPLATES.each do |name, payload|
-      File.write(
-        File.join(replay_dir, "#{name}.json"),
-        JSON.pretty_generate(payload.merge("template_hint" => template_type))
-      )
-    end
+        replay_dir = File.join(dir, "replay")
+        FileUtils.mkdir_p(replay_dir)
+        REPLAY_TEMPLATES.each do |name, payload|
+          File.write(
+            File.join(replay_dir, "#{name}.json"),
+            JSON.pretty_generate(payload.merge("template_hint" => template_type))
+          )
+        end
       end
 
       def generate_tests(dir, sdk, _template_type, name)
@@ -1507,50 +1508,50 @@ module Kiket
                 assert response["status"] == "allow"
           PYTHON
 
-      File.write(File.join(dir, "pytest.ini"), <<~INI)
-        [pytest]
-        testpaths = tests
-        python_files = test_*.py
-        python_classes = Test*
-        python_functions = test_*
+          File.write(File.join(dir, "pytest.ini"), <<~INI)
+            [pytest]
+            testpaths = tests
+            python_files = test_*.py
+            python_classes = Test*
+            python_functions = test_*
           INI
         when "node"
           test_dir = File.join(dir, "tests")
           FileUtils.mkdir_p(test_dir)
 
-      File.write(File.join(test_dir, "handler.test.ts"), <<~TS)
-        import { handleEvent } from '../src/handler';
+          File.write(File.join(test_dir, "handler.test.ts"), <<~TS)
+            import { handleEvent } from '../src/handler';
 
-        test('before transition allows by default', async () => {
-          const response = await handleEvent({ event_type: 'before_transition' } as any);
-          expect(response.status).toBeDefined();
-        });
-      TS
+            test('before transition allows by default', async () => {
+              const response = await handleEvent({ event_type: 'before_transition' } as any);
+              expect(response.status).toBeDefined();
+            });
+          TS
 
-      File.write(File.join(dir, "jest.config.js"), <<~JS)
-        module.exports = {
-          preset: 'ts-jest',
-          testEnvironment: 'node',
-          roots: ['<rootDir>/tests']
-        };
+          File.write(File.join(dir, "jest.config.js"), <<~JS)
+            module.exports = {
+              preset: 'ts-jest',
+              testEnvironment: 'node',
+              roots: ['<rootDir>/tests']
+            };
           JS
         when "ruby"
           spec_dir = File.join(dir, "spec")
           FileUtils.mkdir_p(spec_dir)
 
-      module_name = name.gsub(/\s+/, "")
+          module_name = name.gsub(/\s+/, "")
 
-      File.write(File.join(spec_dir, "handler_spec.rb"), <<~RUBY)
-        # frozen_string_literal: true
+          File.write(File.join(spec_dir, "handler_spec.rb"), <<~RUBY)
+            # frozen_string_literal: true
 
-        require "rspec"
-        require_relative "../lib/handler"
+            require "rspec"
+            require_relative "../lib/handler"
 
-        RSpec.describe #{module_name}::Handler do
-          it "allows unknown events" do
-            expect(described_class.handle_event("event_type" => "unknown")[:status]).to eq("allow")
-          end
-        end
+            RSpec.describe #{module_name}::Handler do
+              it "allows unknown events" do
+                expect(described_class.handle_event("event_type" => "unknown")[:status]).to eq("allow")
+              end
+            end
           RUBY
         end
       end
@@ -1772,9 +1773,7 @@ module Kiket
 
               # Validate inline fields
               fields.each do |field|
-                unless field["key"]
-                  errors << "Step #{step_num} (secrets): Field missing required 'key'"
-                end
+                errors << "Step #{step_num} (secrets): Field missing required 'key'" unless field["key"]
 
                 obtain_type = field.dig("obtain", "type")
                 if obtain_type && !VALID_OBTAIN_TYPES.include?(obtain_type)
@@ -1782,13 +1781,13 @@ module Kiket
                 end
 
                 # OAuth fields require authorization_url and token_url
-                if %w[oauth2 oauth2_client_credentials].include?(obtain_type)
-                  unless field.dig("obtain", "authorization_url")
-                    errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing authorization_url"
-                  end
-                  unless field.dig("obtain", "token_url")
-                    errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing token_url"
-                  end
+                next unless %w[oauth2 oauth2_client_credentials].include?(obtain_type)
+
+                unless field.dig("obtain", "authorization_url")
+                  errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing authorization_url"
+                end
+                unless field.dig("obtain", "token_url")
+                  errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing token_url"
                 end
               end
 
@@ -1814,9 +1813,7 @@ module Kiket
 
               # Validate inline fields
               fields.each do |field|
-                unless field["key"]
-                  errors << "Step #{step_num} (configure): Field missing required 'key'"
-                end
+                errors << "Step #{step_num} (configure): Field missing required 'key'" unless field["key"]
 
                 # Validate showWhen references
                 if field["showWhen"]
@@ -1884,27 +1881,28 @@ module Kiket
 
         def build_replay_payload(opts)
           require "multi_json"
-        payload = if present?(opts[:payload])
+          payload = if present?(opts[:payload])
                       MultiJson.load(File.read(opts[:payload]))
-        elsif present?(opts[:template])
+                    elsif present?(opts[:template])
                       template = REPLAY_TEMPLATES[opts[:template]]
                       raise ArgumentError, "Unknown template #{opts[:template]}" unless template
+
                       MultiJson.load(MultiJson.dump(template))
-        else
-                      input = STDIN.read
+                    else
+                      input = $stdin.read
                       raise ArgumentError, "No payload provided (pass --payload or pipe data)" if input.strip.empty?
+
                       MultiJson.load(input)
-        end
+                    end
 
           secrets = {}
-          if present?(opts[:env_file])
-            secrets.merge!(load_env_file(opts[:env_file]))
-          end
+          secrets.merge!(load_env_file(opts[:env_file])) if present?(opts[:env_file])
 
           prefix = opts[:secret_prefix].to_s
           if present?(prefix)
             ENV.each do |key, value|
               next unless key.start_with?(prefix)
+
               secrets[key.delete_prefix(prefix)] = value
             end
           end
@@ -1923,10 +1921,10 @@ module Kiket
           http.use_ssl = uri.scheme == "https"
           http.read_timeout = 10
           klass = case method.to_s.upcase
-          when "POST" then Net::HTTP::Post
-          when "PUT" then Net::HTTP::Put
-          else Net::HTTP::Post
-          end
+                  when "POST" then Net::HTTP::Post
+                  when "PUT" then Net::HTTP::Put
+                  else Net::HTTP::Post
+                  end
           request = klass.new(uri.request_uri)
           headers.each { |k, v| request[k] = v }
           request.body = body
@@ -1935,6 +1933,7 @@ module Kiket
 
         def load_env_file(path)
           return {} if blank?(path)
+
           unless File.exist?(path)
             warning "Env file #{path} not found"
             return {}
@@ -1943,8 +1942,10 @@ module Kiket
           File.readlines(path).each_with_object({}) do |line, acc|
             line = line.strip
             next if line.empty? || line.start_with?("#")
+
             key, value = line.split("=", 2)
             next unless key && value
+
             acc[key.strip] = value.strip
           end
         rescue StandardError => e

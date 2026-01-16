@@ -44,7 +44,7 @@ RSpec.describe Kiket::Commands::Sla do
         .and_return(response)
 
       expect do
-        described_class.start([ "events" ])
+        described_class.start(["events"])
       end.not_to raise_error
     end
   end

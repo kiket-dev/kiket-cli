@@ -29,9 +29,7 @@ module Kiket
         results = []
         harness.run.each do |result|
           results << result
-          if options[:fail_fast] && result.severity == :error
-            break
-          end
+          break if options[:fail_fast] && result.severity == :error
         end
 
         errors = results.select { |r| r.severity == :error }
@@ -65,11 +63,11 @@ module Kiket
         longest_category = results.map { |r| r.category.to_s.length }.max || 0
         results.each do |result|
           colorized = case result.severity
-          when :error then pastel.red("✗")
-          when :warning then pastel.yellow("⚠")
-          when :success then pastel.green("✓")
-          else pastel.dim("·")
-          end
+                      when :error then pastel.red("✗")
+                      when :warning then pastel.yellow("⚠")
+                      when :success then pastel.green("✓")
+                      else pastel.dim("·")
+                      end
           file_info = result.file ? " (#{relative_path(result.file)})" : ""
           puts format("%s %-#{longest_category}s %s%s",
                       colorized,
@@ -98,7 +96,7 @@ module Kiket
         string = value.to_s
         return string if string.length <= limit
 
-        string[0, limit] + "…"
+        "#{string[0, limit]}…"
       end
     end
   end

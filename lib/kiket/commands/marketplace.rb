@@ -171,11 +171,11 @@ module Kiket
         puts pastel.bold("Changes:")
         preview["changes"].each do |change|
           icon = case change["type"]
-          when "add" then pastel.green("+")
-          when "remove" then pastel.red("-")
-          when "modify" then pastel.yellow("~")
-          else "•"
-          end
+                 when "add" then pastel.green("+")
+                 when "remove" then pastel.red("-")
+                 when "modify" then pastel.yellow("~")
+                 else "•"
+                 end
           puts "  #{icon} #{change["description"]}"
         end
         puts ""
@@ -563,7 +563,7 @@ module Kiket
         spinner.auto_spin
         response = client.get("/api/v1/marketplace/installations/#{installation_id}/dbt_runs", params: params)
         runs = Array(response["runs"])
-        spinner.success("Found #{runs.size} run#{'s' unless runs.size == 1}")
+        spinner.success("Found #{runs.size} run#{"s" unless runs.size == 1}")
 
         if runs.empty?
           info "No dbt runs recorded for installation #{installation_id}."
@@ -600,7 +600,7 @@ module Kiket
       def onboarding_wizard
         identifier = options[:identifier] || prompt.ask("Product identifier (letters, numbers, dashes):") do |q|
           q.required true
-          q.validate(/^[a-z0-9\-]+$/i)
+          q.validate(/^[a-z0-9-]+$/i)
           q.modify :strip, :downcase
         end
 
@@ -627,7 +627,7 @@ module Kiket
                         when "extension" then "sample-extension"
                         when "definition" then "sample"
                         else "sample"
-        end
+                        end
 
         template_path = File.join(definitions_root, template_name)
         if Dir.exist?(template_path)
@@ -650,14 +650,10 @@ module Kiket
         )
 
         # Generate SDK-specific files for extension type
-        if template_type == "extension"
-          generate_extension_handler(destination, options[:sdk])
-        end
+        generate_extension_handler(destination, options[:sdk]) if template_type == "extension"
 
         # Generate CI unless skipped
-        unless options[:skip_ci]
-          generate_github_workflow(destination, template_type, options[:sdk])
-        end
+        generate_github_workflow(destination, template_type, options[:sdk]) unless options[:skip_ci]
 
         # Create README
         create_onboarding_readme_full(
@@ -699,9 +695,11 @@ module Kiket
 
       desc "sync_samples", "Copy sample blueprint repositories locally"
       option :destination, aliases: "-o", default: File.join(Dir.pwd, "marketplace-samples"), desc: "Destination folder"
-      option :blueprints, aliases: "-b", type: :array, default: %w[sample marketing_ops], desc: "Blueprint directories to copy"
+      option :blueprints, aliases: "-b", type: :array, default: %w[sample marketing_ops],
+                          desc: "Blueprint directories to copy"
       option :force, type: :boolean, desc: "Overwrite destination if it exists"
-      option :with_metadata, type: :boolean, default: true, desc: "Generate product metadata manifests alongside samples"
+      option :with_metadata, type: :boolean, default: true,
+                             desc: "Generate product metadata manifests alongside samples"
       def sync_samples
         dest_root = File.expand_path(options[:destination])
         prepare_destination!(dest_root, force: options[:force], empty_ok: true)
@@ -841,29 +839,34 @@ module Kiket
 
           # Check version format
           version = manifest.dig("extension", "version") || manifest["version"]
-          if version && version.match?(/^\d+\.\d+\.\d+(-[\w.]+)?$/)
-            checks << { name: "Version format (semver)", status: :pass, message: nil }
-          else
-            checks << { name: "Version format (semver)", status: :error, message: "Version '#{version}' is not valid semver (expected: X.Y.Z)" }
-          end
+          checks << if version&.match?(/^\d+\.\d+\.\d+(-[\w.]+)?$/)
+                      { name: "Version format (semver)", status: :pass, message: nil }
+                    else
+                      { name: "Version format (semver)", status: :error,
+                        message: "Version '#{version}' is not valid semver (expected: X.Y.Z)" }
+                    end
 
           # Check extension ID format
           ext_id = manifest.dig("extension", "id") || manifest["identifier"]
-          if ext_id && ext_id.match?(/^[a-z][a-z0-9._-]*\.[a-z][a-z0-9._-]+$/i)
-            checks << { name: "Extension ID format", status: :pass, message: nil }
-          else
-            checks << { name: "Extension ID format", status: :error, message: "ID '#{ext_id}' invalid (expected: domain.name format)" }
-          end
+          checks << if ext_id&.match?(/^[a-z][a-z0-9._-]*\.[a-z][a-z0-9._-]+$/i)
+                      { name: "Extension ID format", status: :pass, message: nil }
+                    else
+                      { name: "Extension ID format", status: :error,
+                        message: "ID '#{ext_id}' invalid (expected: domain.name format)" }
+                    end
 
           # Check secrets are documented
           secrets = manifest.dig("extension", "secrets") || []
           if secrets.is_a?(Array)
             secrets.each do |secret|
               if secret["description"].to_s.strip.empty?
-                checks << { name: "Secret documentation", status: :warning, message: "Secret '#{secret["key"]}' missing description" }
+                checks << { name: "Secret documentation", status: :warning,
+                            message: "Secret '#{secret["key"]}' missing description" }
               end
             end
-            checks << { name: "Secrets documented", status: :pass, message: nil } if secrets.all? { |s| s["description"].to_s.strip.present? }
+            checks << { name: "Secrets documented", status: :pass, message: nil } if secrets.all? do |s|
+              s["description"].to_s.strip.present?
+            end
           end
         else
           checks << { name: "Manifest exists", status: :error, message: "Missing .kiket/manifest.yaml" }
@@ -871,19 +874,19 @@ module Kiket
 
         # Check README exists
         readme_path = Dir.glob(File.join(path, "README*")).first
-        if readme_path
-          checks << { name: "README exists", status: :pass, message: nil }
-        else
-          checks << { name: "README exists", status: :warning, message: "No README file found" }
-        end
+        checks << if readme_path
+                    { name: "README exists", status: :pass, message: nil }
+                  else
+                    { name: "README exists", status: :warning, message: "No README file found" }
+                  end
 
         # Check LICENSE exists
         license_path = Dir.glob(File.join(path, "LICENSE*")).first
-        if license_path
-          checks << { name: "LICENSE exists", status: :pass, message: nil }
-        else
-          checks << { name: "LICENSE exists", status: :warning, message: "No LICENSE file found" }
-        end
+        checks << if license_path
+                    { name: "LICENSE exists", status: :pass, message: nil }
+                  else
+                    { name: "LICENSE exists", status: :warning, message: "No LICENSE file found" }
+                  end
 
         # Check for hardcoded secrets
         hardcoded = check_for_hardcoded_secrets(path)
@@ -902,11 +905,11 @@ module Kiket
           File.join(path, ".github", "workflows", "validate.yml"),
           File.join(path, ".github", "workflows", "validate.yaml")
         ]
-        if ci_paths.any? { |p| File.exist?(p) }
-          checks << { name: "CI workflow exists", status: :pass, message: nil }
-        else
-          checks << { name: "CI workflow exists", status: :warning, message: "No GitHub Actions workflow found" }
-        end
+        checks << if ci_paths.any? { |p| File.exist?(p) }
+                    { name: "CI workflow exists", status: :pass, message: nil }
+                  else
+                    { name: "CI workflow exists", status: :warning, message: "No GitHub Actions workflow found" }
+                  end
 
         checks
       end
@@ -918,20 +921,20 @@ module Kiket
         required = %w[id name version]
         required.each do |field|
           value = ext[field] || manifest[field]
-          if value.to_s.strip.present?
-            checks << { name: "Required field: #{field}", status: :pass, message: nil }
-          else
-            checks << { name: "Required field: #{field}", status: :error, message: "Missing required field '#{field}'" }
-          end
+          checks << if value.to_s.strip.present?
+                      { name: "Required field: #{field}", status: :pass, message: nil }
+                    else
+                      { name: "Required field: #{field}", status: :error, message: "Missing required field '#{field}'" }
+                    end
         end
 
         # Check description (warning if missing)
         desc = ext["description"] || manifest["description"]
-        if desc.to_s.strip.present?
-          checks << { name: "Description provided", status: :pass, message: nil }
-        else
-          checks << { name: "Description provided", status: :warning, message: "No description provided" }
-        end
+        checks << if desc.to_s.strip.present?
+                    { name: "Description provided", status: :pass, message: nil }
+                  else
+                    { name: "Description provided", status: :warning, message: "No description provided" }
+                  end
 
         checks
       end
@@ -975,7 +978,7 @@ module Kiket
                  when :warning then pastel.yellow("⚠")
                  when :error then pastel.red("✗")
                  else "?"
-          end
+                 end
 
           line = "#{icon} #{check[:name]}"
           line += " — #{check[:message]}" if check[:message]
@@ -995,7 +998,7 @@ module Kiket
         nil
       end
 
-      def check_secrets_configured(manifest, path)
+      def check_secrets_configured(manifest, _path)
         secrets = manifest.dig("extension", "secrets") || []
         return if secrets.empty?
 
@@ -1007,11 +1010,11 @@ module Kiket
 
           status = if env_present
                      pastel.green("[configured]")
-          elsif required
+                   elsif required
                      pastel.red("[missing - required]")
-          else
+                   else
                      pastel.yellow("[not set - optional]")
-          end
+                   end
 
           puts "  #{key}: #{status}"
           puts "    #{pastel.dim(secret["description"])}" if secret["description"]
@@ -1019,15 +1022,13 @@ module Kiket
         puts ""
       end
 
-      def check_dependencies_installed(manifest, path)
+      def check_dependencies_installed(_manifest, path)
         puts pastel.bold("Dependencies")
 
         # Check for Python dependencies
         requirements = File.join(path, "requirements.txt")
         pyproject = File.join(path, "pyproject.toml")
-        if File.exist?(requirements) || File.exist?(pyproject)
-          puts "  Python: #{pastel.green("requirements found")}"
-        end
+        puts "  Python: #{pastel.green("requirements found")}" if File.exist?(requirements) || File.exist?(pyproject)
 
         # Check for Node dependencies
         package_json = File.join(path, "package.json")
@@ -1246,10 +1247,10 @@ module Kiket
         manifest_path = File.join(destination, ".kiket", "manifest.yaml")
         FileUtils.mkdir_p(File.dirname(manifest_path))
         manifest = if File.exist?(manifest_path)
-                     YAML.safe_load(File.read(manifest_path)) || {}
-        else
+                     YAML.safe_load_file(manifest_path) || {}
+                   else
                      {}
-        end
+                   end
         manifest["identifier"] = identifier
         manifest["name"] = name
         manifest["description"] = description
@@ -1303,10 +1304,10 @@ module Kiket
         FileUtils.mkdir_p(File.dirname(manifest_path))
 
         manifest = if File.exist?(manifest_path)
-                     YAML.safe_load(File.read(manifest_path)) || {}
-        else
+                     YAML.safe_load_file(manifest_path) || {}
+                   else
                      {}
-        end
+                   end
 
         # Build extension-style manifest
         manifest["model_version"] = "1.0"
@@ -1533,7 +1534,7 @@ module Kiket
         File.write(gemfile_path, gemfile_content)
       end
 
-      def generate_github_workflow(destination, template_type, sdk)
+      def generate_github_workflow(destination, _template_type, sdk)
         workflow_path = File.join(destination, ".github", "workflows", "ci.yml")
         FileUtils.mkdir_p(File.dirname(workflow_path))
 
@@ -1542,41 +1543,41 @@ module Kiket
                        when "node", "nodejs" then "npm test"
                        when "ruby" then "bundle exec rspec"
                        else "echo 'No tests configured'"
-        end
+                       end
 
         lint_command = case sdk
                        when "python" then "ruff check ."
                        when "node", "nodejs" then "npm run lint"
                        when "ruby" then "bundle exec rubocop"
                        else "echo 'No linter configured'"
-        end
+                       end
 
         setup_steps = case sdk
                       when "python"
                         <<~YAML
-              - uses: actions/setup-python@v5
-                with:
-                  python-version: '3.11'
-              - run: pip install -r requirements.txt
-              - run: pip install pytest ruff
+                          - uses: actions/setup-python@v5
+                            with:
+                              python-version: '3.11'
+                          - run: pip install -r requirements.txt
+                          - run: pip install pytest ruff
                         YAML
                       when "node", "nodejs"
                         <<~YAML
-              - uses: actions/setup-node@v4
-                with:
-                  node-version: '20'
-              - run: npm install
+                          - uses: actions/setup-node@v4
+                            with:
+                              node-version: '20'
+                          - run: npm install
                         YAML
                       when "ruby"
                         <<~YAML
-              - uses: ruby/setup-ruby@v1
-                with:
-                  ruby-version: '3.3'
-                  bundler-cache: true
+                          - uses: ruby/setup-ruby@v1
+                            with:
+                              ruby-version: '3.3'
+                              bundler-cache: true
                         YAML
                       else
                         ""
-        end
+                      end
 
         content = <<~YAML
           name: CI
@@ -1745,7 +1746,7 @@ module Kiket
 
         table = TTY::Table.new(%w[key name repository], rows)
         puts pastel.bold("Projects:")
-        puts table.render(:unicode, padding: [ 0, 1 ])
+        puts table.render(:unicode, padding: [0, 1])
         puts ""
       end
 
@@ -1758,9 +1759,9 @@ module Kiket
         extensions.each do |ext|
           status_label = if ext["present"]
                            pastel.green("installed")
-          else
+                         else
                            pastel.red("missing")
-          end
+                         end
 
           requirement = ext["required"] ? pastel.red("required") : pastel.dim("optional")
           puts "  • #{ext["extension_id"]} (#{ext["name"]}) - #{status_label}, #{requirement}"
@@ -1777,9 +1778,9 @@ module Kiket
             line += " (#{secret["description"]})" if present?(secret["description"])
             line += if missing.include?(key)
                       " #{pastel.yellow("[missing]")}"
-            else
+                    else
                       " #{pastel.green("[configured]")}"
-            end
+                    end
             line += pastel.cyan(" [placeholder]") if scaffolded.include?(key)
             puts line
           end
@@ -1868,7 +1869,7 @@ module Kiket
           "name" => name,
           "description" => description,
           "metadata" => {
-            "categories" => [ "custom" ],
+            "categories" => ["custom"],
             "published" => false,
             "pricing" => {
               "model" => "custom",
@@ -1946,9 +1947,15 @@ module Kiket
       def normalize_blueprint_payload(payload, definition_path: nil)
         data = deep_stringify(payload || {})
         data["metadata"] ||= {}
-        data["metadata"]["categories"] = Array(data["metadata"]["categories"]).compact if data["metadata"].key?("categories")
+        if data["metadata"].key?("categories")
+          data["metadata"]["categories"] =
+            Array(data["metadata"]["categories"]).compact
+        end
         data["metadata"]["categories"] ||= []
-        data["metadata"]["prerequisites"] = Array(data["metadata"]["prerequisites"]).compact if data["metadata"].key?("prerequisites")
+        if data["metadata"].key?("prerequisites")
+          data["metadata"]["prerequisites"] =
+            Array(data["metadata"]["prerequisites"]).compact
+        end
         data["metadata"]["prerequisites"] ||= []
         data["metadata"]["repositories"] ||= []
         data["metadata"]["projects"] ||= []
@@ -2002,7 +2009,7 @@ module Kiket
         dir = blueprint_config_dir(root)
         return nil unless Dir.exist?(dir)
 
-        underscored = File.join(dir, "#{identifier.to_s.tr('-', '_')}.yml")
+        underscored = File.join(dir, "#{identifier.to_s.tr("-", "_")}.yml")
         dashed = File.join(dir, "#{identifier}.yml")
 
         return underscored if File.exist?(underscored)
@@ -2020,13 +2027,13 @@ module Kiket
       def default_name_for(identifier)
         return "Product" if identifier.to_s.strip.empty?
 
-        identifier.split(/[-_]/).map { |segment| segment.capitalize }.join(" ")
+        identifier.split(/[-_]/).map(&:capitalize).join(" ")
       end
 
       def load_yaml_file(path)
         return nil unless path && File.exist?(path)
 
-        YAML.safe_load(File.read(path), aliases: true) || {}
+        YAML.safe_load_file(path, aliases: true) || {}
       rescue Psych::SyntaxError => e
         raise "Unable to parse YAML at #{path}: #{e.message}"
       end
@@ -2069,7 +2076,10 @@ module Kiket
       def summarize_message(run)
         message = run["error_message"]
         message = run["message"] if message.nil? || message.to_s.strip.empty?
-        message = run.dig("metadata", "message") if (message.nil? || message.to_s.strip.empty?) && run["metadata"].is_a?(Hash)
+        if (message.nil? || message.to_s.strip.empty?) && run["metadata"].is_a?(Hash)
+          message = run.dig("metadata",
+                            "message")
+        end
         message.to_s.strip.empty? ? "—" : message.to_s
       end
 
@@ -2132,7 +2142,7 @@ module Kiket
         puts "Window: last #{window_hours}h"
         puts "Requests: #{total}"
         puts "Errors: #{response["error_count"]} (#{response["error_rate"]}%)"
-        puts "Latency: avg #{response["avg_latency_ms"] || '—'}ms · p95 #{response["p95_latency_ms"] || '—'}ms"
+        puts "Latency: avg #{response["avg_latency_ms"] || "—"}ms · p95 #{response["p95_latency_ms"] || "—"}ms"
         puts ""
 
         top_extensions = Array(response["top_extensions"])

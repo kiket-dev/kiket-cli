@@ -51,7 +51,7 @@ module Kiket
         spinner = spinner("Fetching proof...")
         spinner.auto_spin
 
-        params = options[:type] != "AuditLog" ? { record_type: options[:type] } : {}
+        params = options[:type] == "AuditLog" ? {} : { record_type: options[:type] }
         response = client.get("/api/v1/audit/records/#{record_id}/proof", params: params)
         spinner.success
 
@@ -74,13 +74,13 @@ module Kiket
       def verify(proof_file = nil)
         # Load proof data
         proof_data = if options[:json]
-          JSON.parse(options[:json])
-        elsif proof_file
-          JSON.parse(File.read(proof_file))
-        else
-          error "Please provide a proof file or --json option"
-          exit 1
-        end
+                       JSON.parse(options[:json])
+                     elsif proof_file
+                       JSON.parse(File.read(proof_file))
+                     else
+                       error "Please provide a proof file or --json option"
+                       exit 1
+                     end
 
         if options[:local]
           verify_locally(proof_data)
@@ -115,7 +115,7 @@ module Kiket
         valid_types = %w[audit-trail eu-ai-act]
         unless valid_types.include?(report_type)
           error "Invalid report type: #{report_type}"
-          error "Valid types: #{valid_types.join(', ')}"
+          error "Valid types: #{valid_types.join(", ")}"
           exit 1
         end
 
@@ -123,11 +123,11 @@ module Kiket
         spinner.auto_spin
 
         endpoint = case report_type
-        when "audit-trail"
-          "/api/v1/audit/reports/audit_trail.pdf"
-        when "eu-ai-act"
-          "/api/v1/audit/reports/eu_ai_act.pdf"
-        end
+                   when "audit-trail"
+                     "/api/v1/audit/reports/audit_trail.pdf"
+                   when "eu-ai-act"
+                     "/api/v1/audit/reports/eu_ai_act.pdf"
+                   end
 
         params = {
           from: options[:start],
@@ -138,7 +138,7 @@ module Kiket
         response = client.get_raw(endpoint, params: params)
         spinner.success
 
-        output_path = options[:output] || "#{report_type.gsub('-', '_')}_#{Date.today}.pdf"
+        output_path = options[:output] || "#{report_type.gsub("-", "_")}_#{Date.today}.pdf"
         File.binwrite(output_path, response)
 
         success "Report saved to #{output_path}"
@@ -186,13 +186,11 @@ module Kiket
         if latest
           say ""
           say "Latest Anchor:", :bold
-          say "  Merkle Root: #{latest['merkle_root']}"
-          say "  Records:     #{latest['leaf_count']}"
-          say "  Status:      #{latest['status']}"
-          say "  Network:     #{latest['network']}"
-          if latest["explorer_url"]
-            say "  Explorer:    #{latest['explorer_url']}"
-          end
+          say "  Merkle Root: #{latest["merkle_root"]}"
+          say "  Records:     #{latest["leaf_count"]}"
+          say "  Status:      #{latest["status"]}"
+          say "  Network:     #{latest["network"]}"
+          say "  Explorer:    #{latest["explorer_url"]}" if latest["explorer_url"]
         end
       rescue StandardError => e
         handle_error(e)
@@ -204,8 +202,12 @@ module Kiket
         headers = %w[ID Status Records Network Created TX]
 
         rows = anchors.map do |anchor|
-          tx_short = anchor["tx_hash"] ? anchor["tx_hash"][0..10] + "..." : "-"
-          created = Time.parse(anchor["created_at"]).strftime("%Y-%m-%d %H:%M") rescue anchor["created_at"]
+          tx_short = anchor["tx_hash"] ? "#{anchor["tx_hash"][0..10]}..." : "-"
+          created = begin
+            Time.parse(anchor["created_at"]).strftime("%Y-%m-%d %H:%M")
+          rescue StandardError
+            anchor["created_at"]
+          end
 
           [
             anchor["id"],
@@ -247,9 +249,9 @@ module Kiket
         if valid
           success "Proof is VALID"
           say ""
-          say "Content Hash:  #{proof_data['content_hash']}"
-          say "Merkle Root:   #{proof_data['merkle_root']}"
-          say "Leaf Index:    #{proof_data['leaf_index']}"
+          say "Content Hash:  #{proof_data["content_hash"]}"
+          say "Merkle Root:   #{proof_data["merkle_root"]}"
+          say "Leaf Index:    #{proof_data["leaf_index"]}"
           say ""
           info "Note: This only verifies the Merkle proof cryptographically."
           info "Use --no-local to also verify the anchor exists on-chain."
@@ -271,31 +273,31 @@ module Kiket
         if response["verified"]
           success "Proof is VALID"
           say ""
-          say "Proof Valid:       #{response['proof_valid']}"
-          say "Blockchain Verified: #{response['blockchain_verified']}"
+          say "Proof Valid:       #{response["proof_valid"]}"
+          say "Blockchain Verified: #{response["blockchain_verified"]}"
 
           if response["blockchain_verified"]
             say ""
             say "Blockchain Details:", :bold
-            say "  Network:     #{response['network']}"
-            say "  Block:       #{response['block_number']}"
-            say "  Timestamp:   #{response['block_timestamp']}"
-            say "  Explorer:    #{response['explorer_url']}" if response["explorer_url"]
+            say "  Network:     #{response["network"]}"
+            say "  Block:       #{response["block_number"]}"
+            say "  Timestamp:   #{response["block_timestamp"]}"
+            say "  Explorer:    #{response["explorer_url"]}" if response["explorer_url"]
           end
         else
           error "Proof is INVALID"
-          error "Reason: #{response['error']}" if response["error"]
+          error "Reason: #{response["error"]}" if response["error"]
           exit 1
         end
       end
 
       def merkle_verify(content_hash:, proof_path:, leaf_index:, merkle_root:)
-        normalize_hash = ->(h) {
+        normalize_hash = lambda { |h|
           hex = h.start_with?("0x") ? h[2..] : h
           [hex].pack("H*")
         }
 
-        hash_pair = ->(left, right) {
+        hash_pair = lambda { |left, right|
           left, right = right, left if left > right
           Digest::SHA256.digest(left + right)
         }
@@ -306,10 +308,10 @@ module Kiket
         proof_path.each do |sibling_hex|
           sibling = normalize_hash.call(sibling_hex)
           current = if idx.even?
-            hash_pair.call(current, sibling)
-          else
-            hash_pair.call(sibling, current)
-          end
+                      hash_pair.call(current, sibling)
+                    else
+                      hash_pair.call(sibling, current)
+                    end
           idx /= 2
         end
 

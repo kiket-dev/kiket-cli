@@ -61,7 +61,7 @@ module Kiket
 
       def lint
         files = Dir.glob(File.join(@root, "**", ".kiket", "project.y{a}ml"))
-        return [ info_result("projects", nil, "No project.yaml files found") ] if files.empty?
+        return [info_result("projects", nil, "No project.yaml files found")] if files.empty?
 
         files.flat_map { |file| lint_file(file) }
       end
@@ -70,21 +70,17 @@ module Kiket
 
       def lint_file(file)
         data = load_yaml(file)
-        return [ data ] if data.is_a?(Result) # error result
+        return [data] if data.is_a?(Result) # error result
 
         results = []
 
-        unless data.is_a?(Hash)
-          return [ error_result("projects", file, "YAML document must be an object") ]
-        end
+        return [error_result("projects", file, "YAML document must be an object")] unless data.is_a?(Hash)
 
         model_version = data["model_version"]
         results << error_result("projects", file, "Missing model_version") unless model_version
 
         project = data["project"]
-        unless project.is_a?(Hash)
-          return results + [ error_result("projects", file, "Missing project root key") ]
-        end
+        return results + [error_result("projects", file, "Missing project root key")] unless project.is_a?(Hash)
 
         %w[id name].each do |field|
           results << error_result("projects", file, "project.#{field} is required") if project[field].to_s.strip.empty?
@@ -97,7 +93,8 @@ module Kiket
         else
           roles = team["roles"]
           if roles.nil? || !roles.is_a?(Array) || roles.empty?
-            results << warning_result("projects", file, "project.team.roles is not defined; role dropdowns will fall back to 'member'")
+            results << warning_result("projects", file,
+                                      "project.team.roles is not defined; role dropdowns will fall back to 'member'")
           else
             roles.each_with_index do |role, idx|
               unless role.is_a?(Hash)
@@ -109,17 +106,18 @@ module Kiket
               if name.to_s.strip.empty?
                 results << error_result("projects", file, "Role ##{idx + 1} missing 'name' field")
               elsif !name.to_s.match?(/\A[a-zA-Z][a-zA-Z0-9_-]{0,49}\z/)
-                results << error_result("projects", file, "Role '#{name}' has invalid format; must start with letter, contain only letters/numbers/underscores/hyphens, max 50 chars")
+                results << error_result("projects", file,
+                                        "Role '#{name}' has invalid format; must start with letter, contain only letters/numbers/underscores/hyphens, max 50 chars")
               end
             end
           end
         end
 
-        results.empty? ? [ success_result("projects", file, "Project lint passed") ] : results
+        results.empty? ? [success_result("projects", file, "Project lint passed")] : results
       end
 
       def load_yaml(file)
-        YAML.safe_load(File.read(file), aliases: true) || {}
+        YAML.safe_load_file(file, aliases: true) || {}
       rescue Psych::SyntaxError => e
         error_result("projects", file, "YAML syntax error: #{e.message}")
       end
@@ -148,7 +146,7 @@ module Kiket
 
       def lint
         files = Dir.glob(File.join(@root, "**", ".kiket", "workflows", "**", "*.y{a}ml"))
-        return [ info_result("workflows", nil, "No workflow files found") ] if files.empty?
+        return [info_result("workflows", nil, "No workflow files found")] if files.empty?
 
         files.flat_map { |file| lint_file(file) }
       end
@@ -157,17 +155,15 @@ module Kiket
 
       def lint_file(file)
         data = load_yaml(file)
-        return [ data ] if data.is_a?(Result) # error result
+        return [data] if data.is_a?(Result) # error result
 
         if data.is_a?(Hash) && data.key?("recipe")
-          return [ info_result("workflows", file, "Skipped automation recipe definition") ]
+          return [info_result("workflows", file, "Skipped automation recipe definition")]
         end
 
         results = []
 
-        unless data.is_a?(Hash)
-          return [ error_result("workflows", file, "YAML document must be an object") ]
-        end
+        return [error_result("workflows", file, "YAML document must be an object")] unless data.is_a?(Hash)
 
         model_version = data["model_version"] || data.dig("workflow", "model_version")
         results << error_result("workflows", file, "Missing model_version") unless model_version
@@ -222,16 +218,19 @@ module Kiket
 
             from = transition["from"]
             to = transition["to"]
-            results << error_result("workflows", file, "Transition ##{idx + 1} missing 'from'") if from.to_s.strip.empty?
+            if from.to_s.strip.empty?
+              results << error_result("workflows", file,
+                                      "Transition ##{idx + 1} missing 'from'")
+            end
             results << error_result("workflows", file, "Transition ##{idx + 1} missing 'to'") if to.to_s.strip.empty?
           end
         end
 
-        results.empty? ? [ success_result("workflows", file, "Workflow lint passed") ] : results
+        results.empty? ? [success_result("workflows", file, "Workflow lint passed")] : results
       end
 
       def load_yaml(file)
-        YAML.safe_load(File.read(file), aliases: true) || {}
+        YAML.safe_load_file(file, aliases: true) || {}
       rescue Psych::SyntaxError => e
         error_result("workflows", file, "YAML syntax error: #{e.message}")
       end
@@ -260,7 +259,7 @@ module Kiket
 
       def lint
         files = Dir.glob(File.join(@root, "**", ".kiket", "analytics", "dashboards", "**", "*.y{a}ml"))
-        return [ info_result("dashboards", nil, "No dashboard definitions found") ] if files.empty?
+        return [info_result("dashboards", nil, "No dashboard definitions found")] if files.empty?
 
         files.flat_map { |file| lint_file(file) }
       end
@@ -269,16 +268,17 @@ module Kiket
 
       def lint_file(file)
         data = load_yaml(file)
-        return [ data ] if data.is_a?(Result)
+        return [data] if data.is_a?(Result)
 
         dashboard = data["dashboard"]
-        unless dashboard.is_a?(Hash)
-          return [ error_result("dashboards", file, "Missing dashboard root key") ]
-        end
+        return [error_result("dashboards", file, "Missing dashboard root key")] unless dashboard.is_a?(Hash)
 
         results = []
         %w[id name].each do |field|
-          results << error_result("dashboards", file, "dashboard.#{field} is required") if dashboard[field].to_s.strip.empty?
+          if dashboard[field].to_s.strip.empty?
+            results << error_result("dashboards", file,
+                                    "dashboard.#{field} is required")
+          end
         end
 
         widgets = dashboard["widgets"]
@@ -296,7 +296,8 @@ module Kiket
             end
 
             unless widget["query"] || widget["query_config"]
-              results << warning_result("dashboards", file, "Widget '#{widget["id"] || "unknown"}' missing query reference")
+              results << warning_result("dashboards", file,
+                                        "Widget '#{widget["id"] || "unknown"}' missing query reference")
             end
           end
         end
@@ -306,11 +307,11 @@ module Kiket
           results << error_result("dashboards", file, "dashboard.alerts must be an array")
         end
 
-        results.empty? ? [ success_result("dashboards", file, "Dashboard lint passed") ] : results
+        results.empty? ? [success_result("dashboards", file, "Dashboard lint passed")] : results
       end
 
       def load_yaml(file)
-        YAML.safe_load(File.read(file), aliases: true) || {}
+        YAML.safe_load_file(file, aliases: true) || {}
       rescue Psych::SyntaxError => e
         error_result("dashboards", file, "YAML syntax error: #{e.message}")
       end
@@ -354,22 +355,20 @@ module Kiket
           results << info_result("dbt", nil, "Skipped dbt CLI run (no analytics/dbt project found)")
         end
 
-        results.empty? ? [ success_result("dbt", @project_path, "dbt lint passed") ] : results
+        results.empty? ? [success_result("dbt", @project_path, "dbt lint passed")] : results
       end
 
       private
 
       def lint_exposure_file(file)
         data = load_yaml(file)
-        return [ data ] if data.is_a?(Result)
+        return [data] if data.is_a?(Result)
 
         results = []
         exposures = data["exposures"]
         return [] unless exposures # ignore non-exposure files
 
-        unless exposures.is_a?(Array)
-          return [ error_result("dbt", file, "exposures must be an array") ]
-        end
+        return [error_result("dbt", file, "exposures must be an array")] unless exposures.is_a?(Array)
 
         exposures.each do |exposure|
           unless exposure.is_a?(Hash)
@@ -378,13 +377,12 @@ module Kiket
           end
 
           %w[name type maturity].each do |field|
-            if exposure[field].to_s.strip.empty?
-              results << error_result("dbt", file, "Exposure missing #{field}")
-            end
+            results << error_result("dbt", file, "Exposure missing #{field}") if exposure[field].to_s.strip.empty?
           end
 
           if exposure["depends_on"].nil? || exposure["depends_on"].empty?
-            results << warning_result("dbt", file, "Exposure '#{exposure["name"] || "unknown"}' has no depends_on entries")
+            results << warning_result("dbt", file,
+                                      "Exposure '#{exposure["name"] || "unknown"}' has no depends_on entries")
           end
         end
 
@@ -392,24 +390,30 @@ module Kiket
       end
 
       def run_dbt_parse
-        return [ info_result("dbt", @project_path, "dbt command not available; skipping parse run") ] unless dbt_available?
-        return [ error_result("dbt", @project_path, "dbt project path #{@project_path} not found") ] unless Dir.exist?(@project_path)
+        unless dbt_available?
+          return [info_result("dbt", @project_path,
+                              "dbt command not available; skipping parse run")]
+        end
+        unless Dir.exist?(@project_path)
+          return [error_result("dbt", @project_path,
+                               "dbt project path #{@project_path} not found")]
+        end
 
         Dir.chdir(@project_path) do
           cmd = %w[dbt parse]
-          cmd += [ "--project-dir", @project_path ]
+          cmd += ["--project-dir", @project_path]
           profiles_dir = File.join(@project_path, "profiles")
-          cmd += [ "--profiles-dir", profiles_dir ] if Dir.exist?(profiles_dir)
+          cmd += ["--profiles-dir", profiles_dir] if Dir.exist?(profiles_dir)
 
           stdout, stderr, status = Open3.capture3(*cmd)
           unless status.success?
-            return [ error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr) ]
+            return [error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr)]
           end
         end
 
-        [ success_result("dbt", @project_path, "dbt parse succeeded") ]
+        [success_result("dbt", @project_path, "dbt parse succeeded")]
       rescue StandardError => e
-        [ error_result("dbt", @project_path, "dbt parse error: #{e.message}") ]
+        [error_result("dbt", @project_path, "dbt parse error: #{e.message}")]
       end
 
       def dbt_available?
@@ -417,7 +421,7 @@ module Kiket
       end
 
       def load_yaml(file)
-        YAML.safe_load(File.read(file), aliases: true)
+        YAML.safe_load_file(file, aliases: true)
       rescue Psych::SyntaxError => e
         error_result("dbt", file, "YAML syntax error: #{e.message}")
       end

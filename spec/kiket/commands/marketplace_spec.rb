@@ -35,10 +35,10 @@ RSpec.describe Kiket::Commands::Marketplace do
               "name" => "Required Extension",
               "required" => true,
               "present" => true,
-              "secrets" => [ { "key" => "REQUIRED_TOKEN", "description" => "API token" } ]
+              "secrets" => [{ "key" => "REQUIRED_TOKEN", "description" => "API token" }]
             }
           ],
-          "missing_extension_secrets" => { "com.example.required" => [ "REQUIRED_TOKEN" ] },
+          "missing_extension_secrets" => { "com.example.required" => ["REQUIRED_TOKEN"] },
           "scaffolded_extension_secrets" => {}
         }
       }
@@ -58,7 +58,7 @@ RSpec.describe Kiket::Commands::Marketplace do
 
       post_calls = []
       allow(client).to receive(:post) do |path, payload|
-        post_calls << [ path, payload ]
+        post_calls << [path, payload]
         case path
         when "/api/v1/marketplace/installations"
           installation
@@ -77,7 +77,7 @@ RSpec.describe Kiket::Commands::Marketplace do
         env_file.write("REQUIRED_TOKEN=secret-value\n")
         env_file.flush
 
-        described_class.start([ "install", "blueprint-1", "--env-file", env_file.path, "--non-interactive" ])
+        described_class.start(["install", "blueprint-1", "--env-file", env_file.path, "--non-interactive"])
       ensure
         env_file.close
         env_file.unlink
@@ -139,7 +139,7 @@ RSpec.describe Kiket::Commands::Marketplace do
             "status" => "success",
             "command" => "run",
             "queued_at" => "2025-11-10T10:00:00Z",
-            "duration_ms" => 15000,
+            "duration_ms" => 15_000,
             "message" => "dbt run completed"
           }
         ]
@@ -165,18 +165,18 @@ RSpec.describe Kiket::Commands::Marketplace do
         destination = File.join(dir, "custom-blueprint")
 
         described_class.start([
-                                 "onboarding_wizard",
-                                 "--identifier", "custom-blueprint",
-                                 "--name", "Custom Blueprint",
-                                 "--description", "Demo product",
-                                 "--destination", destination,
-                                 "--template", "sample",
-                                 "--force"
-                               ])
+                                "onboarding_wizard",
+                                "--identifier", "custom-blueprint",
+                                "--name", "Custom Blueprint",
+                                "--description", "Demo product",
+                                "--destination", destination,
+                                "--template", "sample",
+                                "--force"
+                              ])
 
         manifest_path = File.join(destination, ".kiket", "manifest.yaml")
         expect(File).to exist(manifest_path)
-        manifest = YAML.safe_load(File.read(manifest_path))
+        manifest = YAML.safe_load_file(manifest_path)
         expect(manifest["identifier"]).to eq("custom-blueprint")
         expect(manifest["name"]).to eq("Custom Blueprint")
       end
@@ -191,19 +191,19 @@ RSpec.describe Kiket::Commands::Marketplace do
           FileUtils.mkdir_p("config/marketplace/blueprints")
 
           described_class.start([
-                                   "metadata",
-                                   "definitions/demo",
-                                   "--identifier", "demo-kit",
-                                   "--name", "Demo Kit",
-                                   "--categories", "ops",
-                                   "--pricing-model", "team"
-                                 ])
+                                  "metadata",
+                                  "definitions/demo",
+                                  "--identifier", "demo-kit",
+                                  "--name", "Demo Kit",
+                                  "--categories", "ops",
+                                  "--pricing-model", "team"
+                                ])
 
           manifest_path = File.join("definitions/demo/.kiket", "product.yaml")
           expect(File).to exist(manifest_path)
-          manifest = YAML.safe_load(File.read(manifest_path))
+          manifest = YAML.safe_load_file(manifest_path)
           expect(manifest["identifier"]).to eq("demo-kit")
-          expect(manifest.dig("metadata", "categories")).to eq([ "ops" ])
+          expect(manifest.dig("metadata", "categories")).to eq(["ops"])
 
           blueprint_path = File.join("config/marketplace/blueprints", "demo_kit.yml")
           expect(File).to exist(blueprint_path)
@@ -233,7 +233,7 @@ RSpec.describe Kiket::Commands::Marketplace do
 
           FileUtils.mkdir_p("config/marketplace/blueprints")
 
-          described_class.start([ "import", source ])
+          described_class.start(["import", source])
 
           destination = File.join("definitions", "sample-kit")
           expect(File).to exist(File.join(destination, "README.md"))
@@ -250,11 +250,11 @@ RSpec.describe Kiket::Commands::Marketplace do
     it "copies the requested blueprint directories" do
       Dir.mktmpdir do |dir|
         described_class.start([
-                                 "sync_samples",
-                                 "--destination", dir,
-                                 "--blueprints", "sample",
-                                 "--force"
-                               ])
+                                "sync_samples",
+                                "--destination", dir,
+                                "--blueprints", "sample",
+                                "--force"
+                              ])
 
         definition_dir = File.join(dir, "sample", ".kiket")
         expect(Dir).to exist(definition_dir)
