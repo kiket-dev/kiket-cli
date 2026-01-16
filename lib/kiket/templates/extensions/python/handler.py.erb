@@ -1,0 +1,38 @@
+"""
+<%= name %> Extension Handler
+
+This extension handles workflow events from Kiket.
+"""
+from typing import Dict, Any
+
+
+def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Main event handler for the extension.
+
+    Args:
+        event: Event payload from Kiket
+
+    Returns:
+        Response dict with status and optional message
+    """
+    event_type = event.get("event_type")
+
+    if event_type == "before_transition":
+        return handle_before_transition(event)
+    elif event_type == "after_transition":
+        return handle_after_transition(event)
+    else:
+        return {"status": "allow", "message": "Unknown event type"}
+
+
+def handle_before_transition(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle before_transition events."""
+    # Add your logic here
+    return {"status": "allow"}
+
+
+def handle_after_transition(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle after_transition events."""
+    # Add your logic here
+    return {"status": "allow"}

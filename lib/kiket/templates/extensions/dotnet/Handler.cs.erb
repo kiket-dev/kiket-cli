@@ -1,0 +1,31 @@
+using Kiket.Sdk;
+using System.Collections.Generic;
+
+namespace <%= namespace %>;
+
+/// <summary>
+/// <%= name %> Extension Handler
+/// </summary>
+public class Handler
+{
+    public static void Main(string[] args)
+    {
+        Extension.Builder()
+            .OnBeforeTransition(HandleBeforeTransition)
+            .OnAfterTransition(HandleAfterTransition)
+            .Run();
+    }
+
+    public static Response HandleBeforeTransition(Dictionary<string, object> payload, Context ctx)
+    {
+        // Access secrets via ctx.Secret("API_KEY")
+        // Add your logic here
+        return Response.Allow();
+    }
+
+    public static Response HandleAfterTransition(Dictionary<string, object> payload, Context ctx)
+    {
+        // Add your logic here
+        return Response.Allow();
+    }
+}

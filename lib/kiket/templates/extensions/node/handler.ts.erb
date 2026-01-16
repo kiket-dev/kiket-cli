@@ -1,0 +1,27 @@
+/**
+ * <%= name %> Extension Handler
+ */
+import { KiketEvent, ExtensionResponse } from '@kiket/sdk';
+
+export async function handleEvent(event: KiketEvent): Promise<ExtensionResponse> {
+  const { event_type } = event;
+
+  switch (event_type) {
+    case 'before_transition':
+      return handleBeforeTransition(event);
+    case 'after_transition':
+      return handleAfterTransition(event);
+    default:
+      return { status: 'allow', message: 'Unknown event type' };
+  }
+}
+
+async function handleBeforeTransition(event: KiketEvent): Promise<ExtensionResponse> {
+  // Add your logic here
+  return { status: 'allow' };
+}
+
+async function handleAfterTransition(event: KiketEvent): Promise<ExtensionResponse> {
+  // Add your logic here
+  return { status: 'allow' };
+}

@@ -1,0 +1,24 @@
+package main
+
+import (
+    "github.com/kiket-dev/sdk-go/kiket"
+)
+
+// <%= name %> Extension Handler
+func main() {
+    kiket.NewExtension().
+        OnBeforeTransition(handleBeforeTransition).
+        OnAfterTransition(handleAfterTransition).
+        Run()
+}
+
+func handleBeforeTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
+    // Access secrets via ctx.Secret("API_KEY")
+    // Add your logic here
+    return kiket.Allow()
+}
+
+func handleAfterTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
+    // Add your logic here
+    return kiket.Allow()
+}

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require_relative "../template_renderer"
 require "fileutils"
 require "zlib"
 require "rubygems/package"
@@ -1200,480 +1201,144 @@ module Kiket
       end
 
       def generate_python_extension(dir, name, _template_type)
-        # Create directory structure
+        renderer = TemplateRenderer.new
         src_dir = File.join(dir, "src")
         FileUtils.mkdir_p(src_dir)
 
-        # Generate main handler
-        File.write(File.join(src_dir, "handler.py"), <<~PYTHON)
-          """
-          #{name} Extension Handler
-
-          This extension handles workflow events from Kiket.
-          """
-          from typing import Dict, Any
-
-
-          def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
-              """
-              Main event handler for the extension.
-
-              Args:
-                  event: Event payload from Kiket
-
-              Returns:
-                  Response dict with status and optional message
-              """
-              event_type = event.get("event_type")
-
-              if event_type == "before_transition":
-                  return handle_before_transition(event)
-              elif event_type == "after_transition":
-                  return handle_after_transition(event)
-              else:
-                  return {"status": "allow", "message": "Unknown event type"}
-
-
-          def handle_before_transition(event: Dict[str, Any]) -> Dict[str, Any]:
-              """Handle before_transition events."""
-              # Add your logic here
-              return {"status": "allow"}
-
-
-          def handle_after_transition(event: Dict[str, Any]) -> Dict[str, Any]:
-              """Handle after_transition events."""
-              # Add your logic here
-              return {"status": "allow"}
-        PYTHON
-
-        # Generate requirements.txt
-        File.write(File.join(dir, "requirements.txt"), <<~REQUIREMENTS)
-          kiket-sdk>=0.1.0
-          requests>=2.31.0
-          pyyaml>=6.0
-        REQUIREMENTS
-
-        # Generate setup files
-        File.write(File.join(dir, "setup.py"), <<~SETUP)
-          from setuptools import setup, find_packages
-
-          setup(
-              name="#{name.tr(" ", "_").downcase}",
-              version="1.0.0",
-              packages=find_packages(where="src"),
-              package_dir={"": "src"},
-              install_requires=[
-                  "kiket-sdk>=0.1.0",
-              ],
-          )
-        SETUP
+        renderer.render_to_file(
+          "extensions/python/handler.py.erb",
+          File.join(src_dir, "handler.py"),
+          { name: name }
+        )
+        renderer.copy_to_file(
+          "extensions/python/requirements.txt",
+          File.join(dir, "requirements.txt")
+        )
+        renderer.render_to_file(
+          "extensions/python/setup.py.erb",
+          File.join(dir, "setup.py"),
+          { package_name: name.tr(" ", "_").downcase }
+        )
       end
 
       def generate_typescript_extension(dir, name, _template_type)
+        renderer = TemplateRenderer.new
         src_dir = File.join(dir, "src")
         FileUtils.mkdir_p(src_dir)
 
-        File.write(File.join(src_dir, "handler.ts"), <<~TYPESCRIPT)
-          /**
-           * #{name} Extension Handler
-           */
-          import { KiketEvent, ExtensionResponse } from '@kiket/sdk';
-
-          export async function handleEvent(event: KiketEvent): Promise<ExtensionResponse> {
-            const { event_type } = event;
-
-            switch (event_type) {
-              case 'before_transition':
-                return handleBeforeTransition(event);
-              case 'after_transition':
-                return handleAfterTransition(event);
-              default:
-                return { status: 'allow', message: 'Unknown event type' };
-            }
-          }
-
-          async function handleBeforeTransition(event: KiketEvent): Promise<ExtensionResponse> {
-            // Add your logic here
-            return { status: 'allow' };
-          }
-
-          async function handleAfterTransition(event: KiketEvent): Promise<ExtensionResponse> {
-            // Add your logic here
-            return { status: 'allow' };
-          }
-        TYPESCRIPT
-
-        File.write(File.join(dir, "package.json"), <<~JSON)
-          {
-            "name": "#{name.tr(" ", "-").downcase}",
-            "version": "1.0.0",
-            "main": "dist/handler.js",
-            "scripts": {
-              "build": "tsc",
-              "test": "jest",
-              "lint": "eslint src/**/*.ts"
-            },
-            "dependencies": {
-              "@kiket/sdk": "^0.1.0"
-            },
-            "devDependencies": {
-              "@types/node": "^20.0.0",
-              "@typescript-eslint/eslint-plugin": "^6.0.0",
-              "@typescript-eslint/parser": "^6.0.0",
-              "eslint": "^8.0.0",
-              "jest": "^29.0.0",
-              "ts-jest": "^29.0.0",
-              "typescript": "^5.0.0"
-            }
-          }
-        JSON
-
-        File.write(File.join(dir, "tsconfig.json"), <<~JSON)
-          {
-            "compilerOptions": {
-              "target": "ES2020",
-              "module": "commonjs",
-              "outDir": "./dist",
-              "rootDir": "./src",
-              "strict": true,
-              "esModuleInterop": true
-            },
-            "include": ["src/**/*"],
-            "exclude": ["node_modules", "dist"]
-          }
-        JSON
+        renderer.render_to_file(
+          "extensions/node/handler.ts.erb",
+          File.join(src_dir, "handler.ts"),
+          { name: name }
+        )
+        renderer.render_to_file(
+          "extensions/node/package.json.erb",
+          File.join(dir, "package.json"),
+          { package_name: name.tr(" ", "-").downcase }
+        )
+        renderer.copy_to_file(
+          "extensions/node/tsconfig.json",
+          File.join(dir, "tsconfig.json")
+        )
       end
 
       def generate_ruby_extension(dir, name, _template_type)
+        renderer = TemplateRenderer.new
         lib_dir = File.join(dir, "lib")
         FileUtils.mkdir_p(lib_dir)
 
         module_name = name.gsub(/\s+/, "")
 
-        File.write(File.join(lib_dir, "handler.rb"), <<~RUBY)
-          # frozen_string_literal: true
-
-          require "kiket"
-
-          module #{module_name}
-            class Handler
-              def self.handle_event(event)
-                event_type = event["event_type"]
-
-                case event_type
-                when "before_transition"
-                  handle_before_transition(event)
-                when "after_transition"
-                  handle_after_transition(event)
-                else
-                  { status: "allow", message: "Unknown event type" }
-                end
-              end
-
-              def self.handle_before_transition(event)
-                # Add your logic here
-                { status: "allow" }
-              end
-
-              def self.handle_after_transition(event)
-                # Add your logic here
-                { status: "allow" }
-              end
-            end
-          end
-        RUBY
-
-        File.write(File.join(dir, "Gemfile"), <<~GEMFILE)
-          source "https://rubygems.org"
-
-          gem "kiket-sdk", "~> 0.1.0"
-
-          group :development, :test do
-            gem "rspec"
-            gem "rubocop"
-          end
-        GEMFILE
+        renderer.render_to_file(
+          "extensions/ruby/handler.rb.erb",
+          File.join(lib_dir, "handler.rb"),
+          { module_name: module_name }
+        )
+        renderer.copy_to_file(
+          "extensions/ruby/Gemfile",
+          File.join(dir, "Gemfile")
+        )
       end
 
       def generate_java_extension(dir, name, _template_type)
+        renderer = TemplateRenderer.new
         package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
-        class_name = name.gsub(/[^a-zA-Z0-9]+/, "")
+        artifact_id = name.downcase.gsub(/[^a-z0-9]+/, "-")
 
         src_dir = File.join(dir, "src", "main", "java", "dev", "kiket", "extensions", package_name)
         FileUtils.mkdir_p(src_dir)
 
-        File.write(File.join(src_dir, "Handler.java"), <<~JAVA)
-          package dev.kiket.extensions.#{package_name};
-
-          import dev.kiket.sdk.Extension;
-          import dev.kiket.sdk.Context;
-          import dev.kiket.sdk.Response;
-
-          import java.util.Map;
-
-          /**
-           * #{name} Extension Handler
-           */
-          public class Handler {
-
-              public static void main(String[] args) {
-                  Extension.builder()
-                      .onBeforeTransition(Handler::handleBeforeTransition)
-                      .onAfterTransition(Handler::handleAfterTransition)
-                      .run();
-              }
-
-              public static Response handleBeforeTransition(Map<String, Object> payload, Context ctx) {
-                  // Access secrets via ctx.secret("API_KEY")
-                  // Add your logic here
-                  return Response.allow();
-              }
-
-              public static Response handleAfterTransition(Map<String, Object> payload, Context ctx) {
-                  // Add your logic here
-                  return Response.allow();
-              }
-          }
-        JAVA
-
-        File.write(File.join(dir, "pom.xml"), <<~XML)
-          <?xml version="1.0" encoding="UTF-8"?>
-          <project xmlns="http://maven.apache.org/POM/4.0.0"
-                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-              <modelVersion>4.0.0</modelVersion>
-
-              <groupId>dev.kiket.extensions</groupId>
-              <artifactId>#{name.downcase.gsub(/[^a-z0-9]+/, "-")}</artifactId>
-              <version>1.0.0</version>
-              <packaging>jar</packaging>
-
-              <properties>
-                  <maven.compiler.source>21</maven.compiler.source>
-                  <maven.compiler.target>21</maven.compiler.target>
-                  <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-              </properties>
-
-              <dependencies>
-                  <dependency>
-                      <groupId>dev.kiket</groupId>
-                      <artifactId>kiket-sdk</artifactId>
-                      <version>0.1.0</version>
-                  </dependency>
-                  <dependency>
-                      <groupId>org.junit.jupiter</groupId>
-                      <artifactId>junit-jupiter</artifactId>
-                      <version>5.10.0</version>
-                      <scope>test</scope>
-                  </dependency>
-              </dependencies>
-
-              <build>
-                  <plugins>
-                      <plugin>
-                          <groupId>org.apache.maven.plugins</groupId>
-                          <artifactId>maven-jar-plugin</artifactId>
-                          <version>3.3.0</version>
-                          <configuration>
-                              <archive>
-                                  <manifest>
-                                      <mainClass>dev.kiket.extensions.#{package_name}.Handler</mainClass>
-                                  </manifest>
-                              </archive>
-                          </configuration>
-                      </plugin>
-                  </plugins>
-              </build>
-          </project>
-        XML
+        renderer.render_to_file(
+          "extensions/java/Handler.java.erb",
+          File.join(src_dir, "Handler.java"),
+          { package_name: package_name, name: name }
+        )
+        renderer.render_to_file(
+          "extensions/java/pom.xml.erb",
+          File.join(dir, "pom.xml"),
+          { package_name: package_name, artifact_id: artifact_id }
+        )
       end
 
       def generate_dotnet_extension(dir, name, _template_type)
+        renderer = TemplateRenderer.new
         namespace = name.gsub(/[^a-zA-Z0-9]+/, "")
-        project_name = name.gsub(/[^a-zA-Z0-9]+/, "-")
 
         FileUtils.mkdir_p(dir)
 
-        File.write(File.join(dir, "Handler.cs"), <<~CSHARP)
-          using Kiket.Sdk;
-          using System.Collections.Generic;
-
-          namespace #{namespace};
-
-          /// <summary>
-          /// #{name} Extension Handler
-          /// </summary>
-          public class Handler
-          {
-              public static void Main(string[] args)
-              {
-                  Extension.Builder()
-                      .OnBeforeTransition(HandleBeforeTransition)
-                      .OnAfterTransition(HandleAfterTransition)
-                      .Run();
-              }
-
-              public static Response HandleBeforeTransition(Dictionary<string, object> payload, Context ctx)
-              {
-                  // Access secrets via ctx.Secret("API_KEY")
-                  // Add your logic here
-                  return Response.Allow();
-              }
-
-              public static Response HandleAfterTransition(Dictionary<string, object> payload, Context ctx)
-              {
-                  // Add your logic here
-                  return Response.Allow();
-              }
-          }
-        CSHARP
-
-        File.write(File.join(dir, "Extension.csproj"), <<~XML)
-          <Project Sdk="Microsoft.NET.Sdk">
-
-            <PropertyGroup>
-              <OutputType>Exe</OutputType>
-              <TargetFramework>net8.0</TargetFramework>
-              <RootNamespace>#{namespace}</RootNamespace>
-              <ImplicitUsings>enable</ImplicitUsings>
-              <Nullable>enable</Nullable>
-            </PropertyGroup>
-
-            <ItemGroup>
-              <PackageReference Include="Kiket.Sdk" Version="0.1.0" />
-            </ItemGroup>
-
-          </Project>
-        XML
+        renderer.render_to_file(
+          "extensions/dotnet/Handler.cs.erb",
+          File.join(dir, "Handler.cs"),
+          { namespace: namespace, name: name }
+        )
+        renderer.render_to_file(
+          "extensions/dotnet/Extension.csproj.erb",
+          File.join(dir, "Extension.csproj"),
+          { namespace: namespace }
+        )
       end
 
       def generate_go_extension(dir, name, _template_type)
-        package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
+        renderer = TemplateRenderer.new
+        module_name = name.downcase.gsub(/[^a-z0-9]+/, "")
 
         FileUtils.mkdir_p(dir)
 
-        File.write(File.join(dir, "main.go"), <<~GO)
-          package main
-
-          import (
-              "github.com/kiket-dev/sdk-go/kiket"
-          )
-
-          // #{name} Extension Handler
-          func main() {
-              kiket.NewExtension().
-                  OnBeforeTransition(handleBeforeTransition).
-                  OnAfterTransition(handleAfterTransition).
-                  Run()
-          }
-
-          func handleBeforeTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
-              // Access secrets via ctx.Secret("API_KEY")
-              // Add your logic here
-              return kiket.Allow()
-          }
-
-          func handleAfterTransition(payload map[string]interface{}, ctx *kiket.Context) *kiket.Response {
-              // Add your logic here
-              return kiket.Allow()
-          }
-        GO
-
-        File.write(File.join(dir, "go.mod"), <<~GOMOD)
-          module #{package_name}
-
-          go 1.23
-
-          require github.com/kiket-dev/sdk-go v0.1.0
-        GOMOD
+        renderer.render_to_file(
+          "extensions/go/main.go.erb",
+          File.join(dir, "main.go"),
+          { name: name }
+        )
+        renderer.render_to_file(
+          "extensions/go/go.mod.erb",
+          File.join(dir, "go.mod"),
+          { module_name: module_name }
+        )
       end
 
       def generate_readme(dir, name, sdk)
-        File.write(File.join(dir, "README.md"), <<~README)
-          # #{name}
-
-          A Kiket extension built with #{sdk.capitalize}.
-
-          ## Description
-
-          TODO: Add extension description
-
-          ## Installation
-
-          TODO: Add installation instructions
-
-          ## Configuration
-
-          TODO: Document configuration options
-
-          ## Development
-
-          ### Testing
-
-          ```bash
-          kiket extensions test
-          ```
-
-          ### Linting
-
-          ```bash
-          kiket extensions lint --fix
-          ```
-
-          ### Publishing
-
-          ```bash
-          kiket extensions publish
-          ```
-
-          ## License
-
-          MIT
-        README
+        renderer = TemplateRenderer.new
+        renderer.render_to_file(
+          "extensions/common/README.md.erb",
+          File.join(dir, "README.md"),
+          { name: name, sdk_name: sdk.capitalize }
+        )
       end
 
       def generate_gitignore(dir)
-        File.write(File.join(dir, ".gitignore"), <<~GITIGNORE)
-          # Dependencies
-          node_modules/
-          __pycache__/
-          *.pyc
-          .venv/
-          venv/
-          vendor/
-
-          # Build outputs
-          dist/
-          build/
-          *.egg-info/
-
-          # IDE
-          .vscode/
-          .idea/
-          *.swp
-          *.swo
-
-          # OS
-          .DS_Store
-          Thumbs.db
-
-          # Test coverage
-          coverage/
-          .coverage
-          htmlcov/
-
-          # Logs
-          *.log
-        GITIGNORE
+        renderer = TemplateRenderer.new
+        renderer.copy_to_file(
+          "extensions/common/.gitignore",
+          File.join(dir, ".gitignore")
+        )
       end
 
       def generate_env_example(dir)
-        File.write(File.join(dir, ".env.example"), <<~ENVFILE)
-          # Example secrets - copy to .env and update values
-          # Use `kiket extensions secrets push <extension_id> --env-file .env`
-          SAMPLE_API_TOKEN=replace_me
-          SAMPLE_WEBHOOK_SECRET=replace_me
-        ENVFILE
+        renderer = TemplateRenderer.new
+        renderer.copy_to_file(
+          "extensions/common/.env.example",
+          File.join(dir, ".env.example")
+        )
       end
 
       def generate_replay_samples(dir, template_type)
@@ -1688,326 +1353,68 @@ module Kiket
       end
 
       def generate_tests(dir, sdk, _template_type, name)
+        renderer = TemplateRenderer.new
+
         case sdk
         when "python"
           test_dir = File.join(dir, "tests")
           FileUtils.mkdir_p(test_dir)
+          renderer.copy_to_file("extensions/python/test_handler.py", File.join(test_dir, "test_handler.py"))
+          renderer.copy_to_file("extensions/python/pytest.ini", File.join(dir, "pytest.ini"))
 
-          File.write(File.join(test_dir, "test_handler.py"), <<~PYTHON)
-            import pytest
-            from src.handler import handle_event
-
-
-            def test_handle_before_transition():
-                event = {
-                    "event_type": "before_transition",
-                    "organization_id": "org-123",
-                    "project_id": "proj-456"
-                }
-                response = handle_event(event)
-                assert response["status"] in ["allow", "deny", "pending_approval"]
-
-
-            def test_handle_after_transition():
-                event = {
-                    "event_type": "after_transition",
-                    "organization_id": "org-123",
-                    "project_id": "proj-456"
-                }
-                response = handle_event(event)
-                assert response["status"] == "allow"
-          PYTHON
-
-          File.write(File.join(dir, "pytest.ini"), <<~INI)
-            [pytest]
-            testpaths = tests
-            python_files = test_*.py
-            python_classes = Test*
-            python_functions = test_*
-          INI
         when "node"
           test_dir = File.join(dir, "tests")
           FileUtils.mkdir_p(test_dir)
+          renderer.copy_to_file("extensions/node/handler.test.ts", File.join(test_dir, "handler.test.ts"))
+          renderer.copy_to_file("extensions/node/jest.config.js", File.join(dir, "jest.config.js"))
 
-          File.write(File.join(test_dir, "handler.test.ts"), <<~TS)
-            import { handleEvent } from '../src/handler';
-
-            test('before transition allows by default', async () => {
-              const response = await handleEvent({ event_type: 'before_transition' } as any);
-              expect(response.status).toBeDefined();
-            });
-          TS
-
-          File.write(File.join(dir, "jest.config.js"), <<~JS)
-            module.exports = {
-              preset: 'ts-jest',
-              testEnvironment: 'node',
-              roots: ['<rootDir>/tests']
-            };
-          JS
         when "ruby"
           spec_dir = File.join(dir, "spec")
           FileUtils.mkdir_p(spec_dir)
-
           module_name = name.gsub(/\s+/, "")
-
-          File.write(File.join(spec_dir, "handler_spec.rb"), <<~RUBY)
-            # frozen_string_literal: true
-
-            require "rspec"
-            require_relative "../lib/handler"
-
-            RSpec.describe #{module_name}::Handler do
-              it "allows unknown events" do
-                expect(described_class.handle_event("event_type" => "unknown")[:status]).to eq("allow")
-              end
-            end
-          RUBY
+          renderer.render_to_file(
+            "extensions/ruby/handler_spec.rb.erb",
+            File.join(spec_dir, "handler_spec.rb"),
+            { module_name: module_name }
+          )
 
         when "java"
           package_name = name.downcase.gsub(/[^a-z0-9]+/, "")
           test_dir = File.join(dir, "src", "test", "java", "dev", "kiket", "extensions", package_name)
           FileUtils.mkdir_p(test_dir)
-
-          File.write(File.join(test_dir, "HandlerTest.java"), <<~JAVA)
-            package dev.kiket.extensions.#{package_name};
-
-            import org.junit.jupiter.api.Test;
-            import static org.junit.jupiter.api.Assertions.*;
-
-            import dev.kiket.sdk.Response;
-            import java.util.HashMap;
-            import java.util.Map;
-
-            class HandlerTest {
-
-                @Test
-                void testHandleBeforeTransition() {
-                    Map<String, Object> payload = new HashMap<>();
-                    payload.put("event_type", "before_transition");
-
-                    // Test that handler returns a valid response
-                    // Note: Full integration test requires mock context
-                    assertNotNull(payload.get("event_type"));
-                }
-
-                @Test
-                void testHandleAfterTransition() {
-                    Map<String, Object> payload = new HashMap<>();
-                    payload.put("event_type", "after_transition");
-
-                    assertNotNull(payload.get("event_type"));
-                }
-            }
-          JAVA
+          renderer.render_to_file(
+            "extensions/java/HandlerTest.java.erb",
+            File.join(test_dir, "HandlerTest.java"),
+            { package_name: package_name }
+          )
 
         when "dotnet"
           test_dir = File.join(dir, "Tests")
           FileUtils.mkdir_p(test_dir)
           namespace = name.gsub(/[^a-zA-Z0-9]+/, "")
-
-          File.write(File.join(test_dir, "HandlerTests.cs"), <<~CSHARP)
-            using Xunit;
-            using System.Collections.Generic;
-
-            namespace #{namespace}.Tests;
-
-            public class HandlerTests
-            {
-                [Fact]
-                public void HandleBeforeTransition_ReturnsValidResponse()
-                {
-                    var payload = new Dictionary<string, object>
-                    {
-                        { "event_type", "before_transition" }
-                    };
-
-                    // Test payload structure
-                    Assert.Equal("before_transition", payload["event_type"]);
-                }
-
-                [Fact]
-                public void HandleAfterTransition_ReturnsValidResponse()
-                {
-                    var payload = new Dictionary<string, object>
-                    {
-                        { "event_type", "after_transition" }
-                    };
-
-                    Assert.Equal("after_transition", payload["event_type"]);
-                }
-            }
-          CSHARP
-
-          File.write(File.join(test_dir, "Tests.csproj"), <<~XML)
-            <Project Sdk="Microsoft.NET.Sdk">
-
-              <PropertyGroup>
-                <TargetFramework>net8.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-                <IsPackable>false</IsPackable>
-              </PropertyGroup>
-
-              <ItemGroup>
-                <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-                <PackageReference Include="xunit" Version="2.6.2" />
-                <PackageReference Include="xunit.runner.visualstudio" Version="2.5.4" />
-              </ItemGroup>
-
-              <ItemGroup>
-                <ProjectReference Include="../Extension.csproj" />
-              </ItemGroup>
-
-            </Project>
-          XML
+          renderer.render_to_file(
+            "extensions/dotnet/HandlerTests.cs.erb",
+            File.join(test_dir, "HandlerTests.cs"),
+            { namespace: namespace }
+          )
+          renderer.render_to_file(
+            "extensions/dotnet/Tests.csproj.erb",
+            File.join(test_dir, "Tests.csproj"),
+            {}
+          )
 
         when "go"
-          File.write(File.join(dir, "main_test.go"), <<~GO)
-            package main
-
-            import (
-                "testing"
-            )
-
-            func TestHandleBeforeTransition(t *testing.T) {
-                payload := map[string]interface{}{
-                    "event_type": "before_transition",
-                }
-
-                if payload["event_type"] != "before_transition" {
-                    t.Error("Expected event_type to be before_transition")
-                }
-            }
-
-            func TestHandleAfterTransition(t *testing.T) {
-                payload := map[string]interface{}{
-                    "event_type": "after_transition",
-                }
-
-                if payload["event_type"] != "after_transition" {
-                    t.Error("Expected event_type to be after_transition")
-                }
-            }
-          GO
+          renderer.copy_to_file("extensions/go/main_test.go", File.join(dir, "main_test.go"))
         end
       end
 
       def generate_github_actions(dir, sdk)
+        renderer = TemplateRenderer.new
         workflows_dir = File.join(dir, ".github", "workflows")
         FileUtils.mkdir_p(workflows_dir)
 
-        case sdk
-        when "python"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: actions/setup-python@v4
-                    with:
-                      python-version: '3.11'
-                  - run: pip install -r requirements.txt
-                  - run: pytest
-                  - run: ruff check .
-          YAML
-        when "node"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: actions/setup-node@v4
-                    with:
-                      node-version: '20'
-                  - run: npm install
-                  - run: npm run lint
-                  - run: npm test -- --runInBand
-          YAML
-        when "ruby"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: ruby/setup-ruby@v1
-                    with:
-                      ruby-version: '3.2'
-                      bundler-cache: true
-                  - run: bundle exec rspec
-          YAML
-
-        when "java"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: actions/setup-java@v4
-                    with:
-                      distribution: 'temurin'
-                      java-version: '21'
-                      cache: 'maven'
-                  - run: mvn test -B
-          YAML
-
-        when "dotnet"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: actions/setup-dotnet@v4
-                    with:
-                      dotnet-version: '8.0.x'
-                  - run: dotnet restore
-                  - run: dotnet build --no-restore
-                  - run: dotnet test --no-build
-          YAML
-
-        when "go"
-          File.write(File.join(workflows_dir, "test.yml"), <<~YAML)
-            name: Test
-
-            on: [push, pull_request]
-
-            jobs:
-              test:
-                runs-on: ubuntu-latest
-                steps:
-                  - uses: actions/checkout@v4
-                  - uses: actions/setup-go@v5
-                    with:
-                      go-version: '1.23'
-                  - run: go mod download
-                  - run: go test -v ./...
-          YAML
-        end
+        template_path = "extensions/#{sdk}/github/test.yml"
+        renderer.copy_to_file(template_path, File.join(workflows_dir, "test.yml"))
       end
 
       def create_tarball(root, archive_path)

@@ -1,0 +1,29 @@
+package dev.kiket.extensions.<%= package_name %>;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+import dev.kiket.sdk.Response;
+import java.util.HashMap;
+import java.util.Map;
+
+class HandlerTest {
+
+    @Test
+    void testHandleBeforeTransition() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("event_type", "before_transition");
+
+        // Test that handler returns a valid response
+        // Note: Full integration test requires mock context
+        assertNotNull(payload.get("event_type"));
+    }
+
+    @Test
+    void testHandleAfterTransition() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("event_type", "after_transition");
+
+        assertNotNull(payload.get("event_type"));
+    }
+}

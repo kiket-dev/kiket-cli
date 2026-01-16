@@ -1,0 +1,30 @@
+using Xunit;
+using System.Collections.Generic;
+
+namespace <%= namespace %>.Tests;
+
+public class HandlerTests
+{
+    [Fact]
+    public void HandleBeforeTransition_ReturnsValidResponse()
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "event_type", "before_transition" }
+        };
+
+        // Test payload structure
+        Assert.Equal("before_transition", payload["event_type"]);
+    }
+
+    [Fact]
+    public void HandleAfterTransition_ReturnsValidResponse()
+    {
+        var payload = new Dictionary<string, object>
+        {
+            { "event_type", "after_transition" }
+        };
+
+        Assert.Equal("after_transition", payload["event_type"]);
+    }
+}

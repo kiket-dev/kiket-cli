@@ -1,0 +1,30 @@
+# frozen_string_literal: true
+
+require "kiket"
+
+module <%= module_name %>
+  class Handler
+    def self.handle_event(event)
+      event_type = event["event_type"]
+
+      case event_type
+      when "before_transition"
+        handle_before_transition(event)
+      when "after_transition"
+        handle_after_transition(event)
+      else
+        { status: "allow", message: "Unknown event type" }
+      end
+    end
+
+    def self.handle_before_transition(event)
+      # Add your logic here
+      { status: "allow" }
+    end
+
+    def self.handle_after_transition(event)
+      # Add your logic here
+      { status: "allow" }
+    end
+  end
+end

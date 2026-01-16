@@ -1,0 +1,31 @@
+package dev.kiket.extensions.<%= package_name %>;
+
+import dev.kiket.sdk.Extension;
+import dev.kiket.sdk.Context;
+import dev.kiket.sdk.Response;
+
+import java.util.Map;
+
+/**
+ * <%= name %> Extension Handler
+ */
+public class Handler {
+
+    public static void main(String[] args) {
+        Extension.builder()
+            .onBeforeTransition(Handler::handleBeforeTransition)
+            .onAfterTransition(Handler::handleAfterTransition)
+            .run();
+    }
+
+    public static Response handleBeforeTransition(Map<String, Object> payload, Context ctx) {
+        // Access secrets via ctx.secret("API_KEY")
+        // Add your logic here
+        return Response.allow();
+    }
+
+    public static Response handleAfterTransition(Map<String, Object> payload, Context ctx) {
+        // Add your logic here
+        return Response.allow();
+    }
+}

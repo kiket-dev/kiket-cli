@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+require "rspec"
+require_relative "../lib/handler"
+
+RSpec.describe <%= module_name %>::Handler do
+  it "allows unknown events" do
+    expect(described_class.handle_event("event_type" => "unknown")[:status]).to eq("allow")
+  end
+end
