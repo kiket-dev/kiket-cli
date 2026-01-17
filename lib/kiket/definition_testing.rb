@@ -21,12 +21,13 @@ module Kiket
 
     class Harness
       def initialize(root:, include_workflows: true, include_dashboards: true, include_dbt: true, include_projects: true,
-                     dbt_project_path: nil, run_dbt_cli: true)
+                     include_inbound_email: true, dbt_project_path: nil, run_dbt_cli: true)
         @root = File.expand_path(root)
         @include_workflows = include_workflows
         @include_dashboards = include_dashboards
         @include_dbt = include_dbt
         @include_projects = include_projects
+        @include_inbound_email = include_inbound_email
         @dbt_project_path = dbt_project_path || default_dbt_project
         @run_dbt_cli = run_dbt_cli
       end
@@ -36,6 +37,7 @@ module Kiket
         results.concat(ProjectLinter.new(@root).lint) if @include_projects
         results.concat(WorkflowLinter.new(@root).lint) if @include_workflows
         results.concat(DashboardLinter.new(@root).lint) if @include_dashboards
+        results.concat(InboundEmailLinter.new(@root).lint) if @include_inbound_email
         if @include_dbt
           results.concat(DbtLinter.new(@root, project_path: @dbt_project_path, run_cli: @run_dbt_cli).lint)
         end
@@ -314,6 +316,107 @@ module Kiket
         YAML.safe_load_file(file, aliases: true) || {}
       rescue Psych::SyntaxError => e
         error_result("dashboards", file, "YAML syntax error: #{e.message}")
+      end
+
+      def error_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :error)
+      end
+
+      def warning_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :warning)
+      end
+
+      def info_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :info)
+      end
+
+      def success_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :success)
+      end
+    end
+
+    class InboundEmailLinter
+      VALID_SENDER_POLICIES = %w[open known_users known_domains].freeze
+      VALID_PRIORITIES = %w[low medium high critical].freeze
+
+      def initialize(root)
+        @root = root
+      end
+
+      def lint
+        files = Dir.glob(File.join(@root, "**", ".kiket", "inbound_email.y{a}ml"))
+        return [info_result("inbound_email", nil, "No inbound_email.yaml files found")] if files.empty?
+
+        files.flat_map { |file| lint_file(file) }
+      end
+
+      private
+
+      def lint_file(file)
+        data = load_yaml(file)
+        return [data] if data.is_a?(Result)
+
+        results = []
+        return [error_result("inbound_email", file, "YAML document must be an object")] unless data.is_a?(Hash)
+
+        inbound_email = data["inbound_email"]
+        return results + [error_result("inbound_email", file, "Missing inbound_email root key")] unless inbound_email.is_a?(Hash)
+
+        results << warning_result("inbound_email", file, "inbound_email.enabled is not set") if inbound_email["enabled"].nil?
+
+        mappings = inbound_email["mappings"]
+        if mappings.nil? || !mappings.is_a?(Array)
+          results << error_result("inbound_email", file, "inbound_email.mappings must be an array")
+        elsif mappings.empty?
+          results << warning_result("inbound_email", file, "inbound_email.mappings is empty")
+        else
+          mappings.each_with_index do |mapping, idx|
+            results.concat(lint_mapping(file, mapping, idx))
+          end
+        end
+
+        results.empty? ? [success_result("inbound_email", file, "Inbound email config lint passed")] : results
+      end
+
+      def lint_mapping(file, mapping, idx)
+        results = []
+        prefix = "Mapping ##{idx + 1}"
+
+        unless mapping.is_a?(Hash)
+          return [error_result("inbound_email", file, "#{prefix} must be an object")]
+        end
+
+        email_address = mapping["email_address"]
+        if email_address.to_s.strip.empty?
+          results << error_result("inbound_email", file, "#{prefix} missing email_address")
+        end
+
+        sender_policy = mapping["sender_policy"]
+        if sender_policy.present? && !VALID_SENDER_POLICIES.include?(sender_policy)
+          results << error_result("inbound_email", file,
+                                  "#{prefix} has invalid sender_policy '#{sender_policy}'; must be one of: #{VALID_SENDER_POLICIES.join(', ')}")
+        end
+
+        issue_defaults = mapping["issue_defaults"]
+        if issue_defaults.is_a?(Hash)
+          priority = issue_defaults["priority"]
+          if priority.present? && !VALID_PRIORITIES.include?(priority)
+            results << error_result("inbound_email", file,
+                                    "#{prefix} has invalid priority '#{priority}'; must be one of: #{VALID_PRIORITIES.join(', ')}")
+          end
+        end
+
+        if mapping["auto_reply"] && mapping["auto_reply_template"].to_s.strip.empty?
+          results << warning_result("inbound_email", file, "#{prefix} has auto_reply enabled but no auto_reply_template")
+        end
+
+        results
+      end
+
+      def load_yaml(file)
+        YAML.safe_load_file(file, aliases: true) || {}
+      rescue Psych::SyntaxError => e
+        error_result("inbound_email", file, "YAML syntax error: #{e.message}")
       end
 
       def error_result(category, file, message)

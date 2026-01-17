@@ -7,10 +7,11 @@ require_relative "../../kiket/definition_testing"
 module Kiket
   module Commands
     class Definitions < Base
-      desc "lint [PATH]", "Lint definition assets (projects, workflows, dashboards, dbt)"
+      desc "lint [PATH]", "Lint definition assets (projects, workflows, dashboards, inbound_email, dbt)"
       option :projects, type: :boolean, default: true, desc: "Include project.yaml linting"
       option :workflows, type: :boolean, default: true, desc: "Include workflow linting"
       option :dashboards, type: :boolean, default: true, desc: "Include dashboard linting"
+      option :inbound_email, type: :boolean, default: true, desc: "Include inbound_email.yaml linting"
       option :dbt, type: :boolean, default: true, desc: "Include dbt linting"
       option :dbt_project, type: :string, desc: "Override analytics/dbt project path"
       option :skip_dbt_cli, type: :boolean, default: false, desc: "Skip running dbt parse"
@@ -21,6 +22,7 @@ module Kiket
           include_projects: options[:projects],
           include_workflows: options[:workflows],
           include_dashboards: options[:dashboards],
+          include_inbound_email: options[:inbound_email],
           include_dbt: options[:dbt],
           dbt_project_path: options[:dbt_project],
           run_dbt_cli: !options[:skip_dbt_cli]
