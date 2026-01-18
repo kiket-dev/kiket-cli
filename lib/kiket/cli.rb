@@ -18,6 +18,9 @@ require_relative "commands/issues"
 require_relative "commands/intakes"
 require_relative "commands/audit"
 require_relative "commands/connections"
+require_relative "commands/projects"
+require_relative "commands/workflow_repos"
+require_relative "commands/sync"
 
 module Kiket
   class CLI < Thor
@@ -76,6 +79,15 @@ module Kiket
 
     desc "connections SUBCOMMAND ...ARGS", "OAuth connections management"
     subcommand "connections", Commands::Connections
+
+    desc "project SUBCOMMAND ...ARGS", "Project management"
+    subcommand "project", Commands::Projects
+
+    desc "workflow-repo SUBCOMMAND ...ARGS", "Workflow repository management"
+    subcommand "workflow-repo", Commands::WorkflowRepos
+
+    desc "sync SUBCOMMAND ...ARGS", "Trigger configuration sync"
+    subcommand "sync", Commands::Sync
 
     desc "doctor", "Run diagnostic health checks"
     subcommand "doctor", Commands::Doctor
