@@ -1,10 +1,62 @@
 # frozen_string_literal: true
 
 require_relative "base"
+require "yaml"
 
 module Kiket
   module Commands
     class Agents < Base
+      ID_PATTERN = /\A[a-z0-9]([a-z0-9._-]*[a-z0-9])?\z/.freeze
+      HUMAN_IN_LOOP_ALLOWED_KEYS = %w[required escalation_strategy notes reason].freeze
+
+      desc "lint [PATH]", "Validate agent manifest files"
+      option :fail_fast, type: :boolean, default: false, desc: "Stop on first error"
+      def lint(path = ".")
+        agent_files = find_agent_files(path)
+
+        if agent_files.empty?
+          warning "No agent manifest files found in #{path}"
+          warning "Agent manifests should be in .kiket/agents/*.yaml or .kiket/agents/*.yml"
+          exit 0
+        end
+
+        errors = []
+        warnings = []
+
+        agent_files.each do |file|
+          info "Checking #{file}..." if verbose?
+
+          file_errors, file_warnings = lint_agent_file(file)
+          errors.concat(file_errors)
+          warnings.concat(file_warnings)
+
+          if options[:fail_fast] && file_errors.any?
+            break
+          end
+        end
+
+        puts "\nResults:"
+        puts "  Files checked: #{agent_files.size}"
+        puts "  #{pastel.green("✓ Valid: #{agent_files.size - errors.map { |e| e.split(":").first }.uniq.size}")}"
+        puts "  #{pastel.red("✗ Errors: #{errors.size}")}" if errors.any?
+        puts "  #{pastel.yellow("⚠ Warnings: #{warnings.size}")}" if warnings.any?
+
+        if errors.any?
+          puts "\nErrors:"
+          errors.each { |err| puts "  #{pastel.red("✗")} #{err}" }
+          exit 1
+        end
+
+        if warnings.any?
+          puts "\nWarnings:"
+          warnings.each { |warn| puts "  #{pastel.yellow("⚠")} #{warn}" }
+        end
+
+        success "Agent manifest validation complete"
+      rescue StandardError => e
+        handle_error(e)
+      end
+
       desc "list PROJECT_ID", "List agent definitions synced into a project"
       option :capability, type: :string, desc: "Filter by capability tag"
       def list(project_id)
@@ -208,14 +260,14 @@ module Kiket
         handle_error(e)
       end
 
-      desc "execute AGENT_ID", "Execute an AI action"
+      desc "execute_action AGENT_ID", "Execute an AI action"
       option :project, type: :string, required: true, desc: "Project ID or slug"
       option :input, type: :string, desc: "JSON input payload"
       option :input_file, type: :string, desc: "Path to JSON file with input payload"
       option :resource_type, type: :string, desc: "Resource type (e.g., Issue)"
       option :resource_id, type: :string, desc: "Resource ID"
       option :trigger_source, type: :string, default: "cli", desc: "Trigger source identifier"
-      def execute(agent_id)
+      def execute_action(agent_id)
         ensure_authenticated!
         org = organization
 
@@ -363,6 +415,108 @@ module Kiket
       end
 
       no_commands do
+        def find_agent_files(path)
+          patterns = [
+            File.join(path, ".kiket/agents/*.yaml"),
+            File.join(path, ".kiket/agents/*.yml"),
+            File.join(path, "**/.kiket/agents/*.yaml"),
+            File.join(path, "**/.kiket/agents/*.yml")
+          ]
+          patterns.flat_map { |pattern| Dir.glob(pattern) }.uniq
+        end
+
+        def lint_agent_file(file)
+          errors = []
+          warnings = []
+
+          begin
+            content = File.read(file)
+            manifest = YAML.safe_load(content, permitted_classes: [Date, Time, Symbol], aliases: true)
+
+            unless manifest.is_a?(Hash)
+              errors << "#{file}: Invalid YAML structure - must be a hash"
+              return [errors, warnings]
+            end
+
+            # Required fields
+            errors << "#{file}: Missing required field 'id'" unless present?(manifest["id"])
+            errors << "#{file}: Missing required field 'version'" unless present?(manifest["version"])
+            errors << "#{file}: Missing required field 'name'" unless present?(manifest["name"])
+            errors << "#{file}: Missing required field 'prompt'" unless present?(manifest["prompt"])
+
+            # ID format validation
+            if present?(manifest["id"]) && !manifest["id"].to_s.match?(ID_PATTERN)
+              errors << "#{file}: Invalid id format '#{manifest["id"]}' - must be lowercase alphanumeric with dots, hyphens, or underscores"
+            end
+
+            # Capabilities validation
+            capabilities = manifest["capabilities"]
+            if capabilities.nil? || (capabilities.is_a?(Array) && capabilities.empty?)
+              errors << "#{file}: Missing or empty 'capabilities' - must be an array of strings"
+            elsif !capabilities.is_a?(Array)
+              errors << "#{file}: 'capabilities' must be an array"
+            elsif capabilities.any? { |c| !c.is_a?(String) || c.strip.empty? }
+              errors << "#{file}: 'capabilities' must contain only non-empty strings"
+            end
+
+            # Context validation
+            if present?(manifest["context"])
+              unless manifest["context"].is_a?(Hash)
+                errors << "#{file}: 'context' must be a hash with 'required' and/or 'optional' keys"
+              else
+                unknown_keys = manifest["context"].keys - %w[required optional]
+                errors << "#{file}: 'context' contains unknown keys: #{unknown_keys.join(', ')}" if unknown_keys.any?
+
+                %w[required optional].each do |key|
+                  next unless manifest["context"][key]
+
+                  unless manifest["context"][key].is_a?(Array) && manifest["context"][key].all? { |v| v.is_a?(String) && !v.strip.empty? }
+                    errors << "#{file}: 'context.#{key}' must be an array of non-empty strings"
+                  end
+                end
+              end
+            end
+
+            # Human in loop validation
+            if present?(manifest["human_in_loop"])
+              hil = manifest["human_in_loop"]
+              unless hil.is_a?(Hash)
+                errors << "#{file}: 'human_in_loop' must be a hash"
+              else
+                unknown_keys = hil.keys.map(&:to_s) - HUMAN_IN_LOOP_ALLOWED_KEYS
+                errors << "#{file}: 'human_in_loop' contains unknown keys: #{unknown_keys.join(', ')}" if unknown_keys.any?
+
+                if hil.key?("required") && ![true, false].include?(hil["required"])
+                  errors << "#{file}: 'human_in_loop.required' must be true or false"
+                end
+              end
+            end
+
+            # Confidence threshold validation
+            if present?(manifest["confidence_threshold"])
+              threshold = manifest["confidence_threshold"]
+              unless threshold.is_a?(Numeric) && threshold.between?(0.0, 1.0)
+                errors << "#{file}: 'confidence_threshold' must be a number between 0.0 and 1.0"
+              end
+            end
+
+            # Optional field warnings
+            warnings << "#{file}: Missing 'description' - recommended for documentation" unless present?(manifest["description"])
+            warnings << "#{file}: Missing 'model_version' - should be '1.0'" unless present?(manifest["model_version"])
+
+          rescue Psych::SyntaxError => e
+            errors << "#{file}: YAML syntax error - #{e.message}"
+          rescue StandardError => e
+            errors << "#{file}: Failed to parse - #{e.message}"
+          end
+
+          [errors, warnings]
+        end
+
+        def present?(value)
+          !value.nil? && !(value.respond_to?(:empty?) && value.empty?) && !(value.respond_to?(:strip) && value.strip.empty?)
+        end
+
         def format_endpoints(endpoints)
           Array(endpoints).map do |endpoint|
             [endpoint["name"], endpoint["type"]].compact.join(" (") + (endpoint["type"] ? ")" : "")
