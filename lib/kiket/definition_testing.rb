@@ -21,13 +21,14 @@ module Kiket
 
     class Harness
       def initialize(root:, include_workflows: true, include_dashboards: true, include_dbt: true, include_projects: true,
-                     include_inbound_email: true, dbt_project_path: nil, run_dbt_cli: true)
+                     include_inbound_email: true, include_issue_types: true, dbt_project_path: nil, run_dbt_cli: true)
         @root = File.expand_path(root)
         @include_workflows = include_workflows
         @include_dashboards = include_dashboards
         @include_dbt = include_dbt
         @include_projects = include_projects
         @include_inbound_email = include_inbound_email
+        @include_issue_types = include_issue_types
         @dbt_project_path = dbt_project_path || default_dbt_project
         @run_dbt_cli = run_dbt_cli
       end
@@ -36,6 +37,7 @@ module Kiket
         results = []
         results.concat(ProjectLinter.new(@root).lint) if @include_projects
         results.concat(WorkflowLinter.new(@root).lint) if @include_workflows
+        results.concat(IssueTypesLinter.new(@root).lint) if @include_issue_types
         results.concat(DashboardLinter.new(@root).lint) if @include_dashboards
         results.concat(InboundEmailLinter.new(@root).lint) if @include_inbound_email
         if @include_dbt
@@ -174,6 +176,16 @@ module Kiket
         name = workflow["name"]
         results << error_result("workflows", file, "Missing workflow.name") if name.to_s.strip.empty?
 
+        # Recommend workflow.id for multi-workflow support
+        workflow_id = workflow["id"]
+        if workflow_id.to_s.strip.empty?
+          results << warning_result("workflows", file,
+                                    "Missing workflow.id; recommended for multi-workflow support")
+        elsif !workflow_id.to_s.match?(/\A[a-z][a-z0-9_-]*\z/)
+          results << error_result("workflows", file,
+                                  "workflow.id '#{workflow_id}' invalid; must be lowercase alphanumeric with hyphens/underscores")
+        end
+
         states = data["states"] || workflow["states"]
         case states
         when Hash
@@ -235,6 +247,145 @@ module Kiket
         YAML.safe_load_file(file, aliases: true) || {}
       rescue Psych::SyntaxError => e
         error_result("workflows", file, "YAML syntax error: #{e.message}")
+      end
+
+      def error_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :error)
+      end
+
+      def warning_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :warning)
+      end
+
+      def info_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :info)
+      end
+
+      def success_result(category, file, message)
+        Result.new(category: category, file: file, message: message, severity: :success)
+      end
+    end
+
+    class IssueTypesLinter
+      VALID_COLORS = %w[primary secondary success danger warning info light dark purple
+                        blue green red yellow orange gray grey].freeze
+      VALID_ICONS = %w[bookmark flag bug check-square lightning diagram-3 kanban star target gear layers circle].freeze
+
+      def initialize(root)
+        @root = root
+      end
+
+      def lint
+        files = Dir.glob(File.join(@root, "**", ".kiket", "issue_types.y{a}ml"))
+        return [info_result("issue_types", nil, "No issue_types.yaml files found")] if files.empty?
+
+        files.flat_map { |file| lint_file(file) }
+      end
+
+      private
+
+      def lint_file(file)
+        data = load_yaml(file)
+        return [data] if data.is_a?(Result)
+
+        results = []
+        return [error_result("issue_types", file, "YAML document must be an object")] unless data.is_a?(Hash)
+
+        model_version = data["model_version"]
+        results << warning_result("issue_types", file, "Missing model_version") unless model_version
+
+        issue_types = data["issue_types"]
+        unless issue_types.is_a?(Array)
+          return results + [error_result("issue_types", file, "Missing or invalid issue_types array")]
+        end
+
+        if issue_types.empty?
+          return results + [error_result("issue_types", file, "issue_types array is empty")]
+        end
+
+        # Collect workflow files for cross-reference validation
+        workflow_dir = File.join(File.dirname(file), "workflows")
+        available_workflows = collect_workflow_ids(workflow_dir)
+
+        issue_types.each_with_index do |type, idx|
+          results.concat(lint_issue_type(file, type, idx, available_workflows))
+        end
+
+        results.empty? ? [success_result("issue_types", file, "Issue types lint passed")] : results
+      end
+
+      def lint_issue_type(file, type, idx, available_workflows)
+        results = []
+        prefix = "Issue type ##{idx + 1}"
+
+        unless type.is_a?(Hash)
+          return [error_result("issue_types", file, "#{prefix} must be an object")]
+        end
+
+        key = type["key"]
+        if key.to_s.strip.empty?
+          results << error_result("issue_types", file, "#{prefix} missing 'key'")
+        elsif !key.to_s.match?(/\A[A-Za-z][A-Za-z0-9_]*\z/)
+          results << error_result("issue_types", file,
+                                  "#{prefix} key '#{key}' invalid; must start with letter, contain only alphanumeric/underscores")
+        end
+
+        color = type["color"]
+        if color.present? && !VALID_COLORS.include?(color.to_s.downcase)
+          results << warning_result("issue_types", file,
+                                    "#{prefix} color '#{color}' unknown; will default to 'primary'")
+        end
+
+        icon = type["icon"]
+        if icon.present? && !VALID_ICONS.include?(icon.to_s.downcase.gsub("_", "-"))
+          results << warning_result("issue_types", file,
+                                    "#{prefix} icon '#{icon}' unknown; will default to 'bookmark'")
+        end
+
+        # Validate workflow key if specified
+        workflow_key = type["workflow"]
+        if workflow_key.present?
+          normalized_workflow_key = workflow_key.to_s.strip.downcase.gsub(/[^a-z0-9_-]/, "")
+
+          unless workflow_key.to_s.match?(/\A[a-z][a-z0-9_-]*\z/)
+            results << error_result("issue_types", file,
+                                    "#{prefix} workflow '#{workflow_key}' invalid; must be lowercase alphanumeric with hyphens/underscores")
+          end
+
+          # Cross-reference: check if workflow exists
+          if available_workflows.any? && !available_workflows.include?(normalized_workflow_key)
+            results << warning_result("issue_types", file,
+                                      "#{prefix} references workflow '#{workflow_key}' but no matching workflow found in #{File.basename(File.dirname(file))}/workflows/")
+          end
+        end
+
+        results
+      end
+
+      def collect_workflow_ids(workflow_dir)
+        return [] unless Dir.exist?(workflow_dir)
+
+        workflow_ids = []
+        Dir.glob(File.join(workflow_dir, "*.y{a}ml")).each do |workflow_file|
+          data = load_yaml(workflow_file)
+          next if data.is_a?(Result)
+          next unless data.is_a?(Hash)
+
+          workflow = data["workflow"]
+          next unless workflow.is_a?(Hash)
+
+          # Use workflow id or filename without extension
+          workflow_id = workflow["id"]
+          workflow_id ||= File.basename(workflow_file, ".*")
+          workflow_ids << workflow_id.to_s.downcase if workflow_id.present?
+        end
+        workflow_ids
+      end
+
+      def load_yaml(file)
+        YAML.safe_load_file(file, aliases: true) || {}
+      rescue Psych::SyntaxError => e
+        error_result("issue_types", file, "YAML syntax error: #{e.message}")
       end
 
       def error_result(category, file, message)

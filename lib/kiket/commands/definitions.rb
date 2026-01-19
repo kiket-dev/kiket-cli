@@ -7,9 +7,10 @@ require_relative "../../kiket/definition_testing"
 module Kiket
   module Commands
     class Definitions < Base
-      desc "lint [PATH]", "Lint definition assets (projects, workflows, dashboards, inbound_email, dbt)"
+      desc "lint [PATH]", "Lint definition assets (projects, workflows, issue_types, dashboards, inbound_email, dbt)"
       option :projects, type: :boolean, default: true, desc: "Include project.yaml linting"
       option :workflows, type: :boolean, default: true, desc: "Include workflow linting"
+      option :issue_types, type: :boolean, default: true, desc: "Include issue_types.yaml linting"
       option :dashboards, type: :boolean, default: true, desc: "Include dashboard linting"
       option :inbound_email, type: :boolean, default: true, desc: "Include inbound_email.yaml linting"
       option :dbt, type: :boolean, default: true, desc: "Include dbt linting"
@@ -21,6 +22,7 @@ module Kiket
           root: path,
           include_projects: options[:projects],
           include_workflows: options[:workflows],
+          include_issue_types: options[:issue_types],
           include_dashboards: options[:dashboards],
           include_inbound_email: options[:inbound_email],
           include_dbt: options[:dbt],
