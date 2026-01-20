@@ -61,6 +61,8 @@ module Kiket
       VALID_STEP_TYPES = %w[secrets configure test info].freeze
       VALID_OBTAIN_TYPES = %w[oauth2 oauth2_client_credentials api_key token input basic auto_generate].freeze
       VALID_SDK_VALUES = %w[ruby python node java dotnet go].freeze
+      # Dynamic field types resolve their options from project context at runtime
+      DYNAMIC_FIELD_TYPES = %w[issue_type workflow_status board priority project].freeze
 
       map(
         "custom-data:list" => :custom_data_list,
@@ -1624,9 +1626,12 @@ module Kiket
                   end
                 end
 
-                # Validate select options
-                if field["type"] == "select" && (field["options"].nil? || field["options"].empty?)
+                # Validate select options - skip for dynamic field types which resolve options at runtime
+                field_type = field["type"]
+                if field_type == "select" && (field["options"].nil? || field["options"].empty?)
                   errors << "Step #{step_num}: Select field '#{field["key"]}' must have options"
+                elsif DYNAMIC_FIELD_TYPES.include?(field_type) && field["options"].present?
+                  warnings << "Step #{step_num}: Dynamic field '#{field["key"]}' (type: #{field_type}) has static options that will be ignored"
                 end
               end
 
