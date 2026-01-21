@@ -157,11 +157,9 @@ RSpec.describe Kiket::Commands::Agents do
     it "warns when no agent files are found" do
       Dir.mktmpdir do |dir|
         output = capture_stdout do
-          begin
-            described_class.start(["lint", dir])
-          rescue SystemExit => e
-            expect(e.status).to eq(0)
-          end
+          described_class.start(["lint", dir])
+        rescue SystemExit => e
+          expect(e.status).to eq(0)
         end
 
         expect(output).to include("No agent manifest files found")

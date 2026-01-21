@@ -2,11 +2,12 @@
 
 require_relative "base"
 require "yaml"
+require "active_support/core_ext/enumerable"
 
 module Kiket
   module Commands
     class Agents < Base
-      ID_PATTERN = /\A[a-z0-9]([a-z0-9._-]*[a-z0-9])?\z/.freeze
+      ID_PATTERN = /\A[a-z0-9]([a-z0-9._-]*[a-z0-9])?\z/
       HUMAN_IN_LOOP_ALLOWED_KEYS = %w[required escalation_strategy notes reason].freeze
 
       desc "lint [PATH]", "Validate agent manifest files"
@@ -30,16 +31,15 @@ module Kiket
           errors.concat(file_errors)
           warnings.concat(file_warnings)
 
-          if options[:fail_fast] && file_errors.any?
-            break
-          end
+          break if options[:fail_fast] && file_errors.any?
         end
 
         puts "\nResults:"
-        puts "  Files checked: #{agent_files.size}"
-        puts "  #{pastel.green("✓ Valid: #{agent_files.size - errors.map { |e| e.split(":").first }.uniq.size}")}"
-        puts "  #{pastel.red("✗ Errors: #{errors.size}")}" if errors.any?
-        puts "  #{pastel.yellow("⚠ Warnings: #{warnings.size}")}" if warnings.any?
+        puts("  Files checked: #{agent_files.size}")
+        valid_count = agent_files.size - errors.map { |e| e.split(":").first }.uniq.size
+        puts "  #{pastel.green("✓ Valid: #{valid_count}")}"
+        puts("  #{pastel.red("✗ Errors: #{errors.size}")}") if errors.any?
+        puts("  #{pastel.yellow("⚠ Warnings: #{warnings.size}")}") if warnings.any?
 
         if errors.any?
           puts "\nErrors:"
@@ -168,8 +168,8 @@ module Kiket
           output_data(rows, headers: %i[feature limit used remaining status])
 
           puts ""
-          puts "Plan: #{response.dig("plan", "name") || "Unknown"}"
-          puts "Billing period: #{response["billing_period"] || "Monthly"}"
+          puts("Plan: #{response.dig("plan", "name") || "Unknown"}")
+          puts("Billing period: #{response["billing_period"] || "Monthly"}")
         else
           output_data(response, headers: nil)
         end
@@ -251,8 +251,8 @@ module Kiket
           output_data(rows, headers: %i[id name description category cost_tier])
 
           puts ""
-          puts "Categories: #{response.fetch("categories", []).join(", ")}"
-          puts "Capabilities: #{response.fetch("capabilities", []).join(", ")}"
+          puts("Categories: #{response.fetch("categories", []).join(", ")}")
+          puts("Capabilities: #{response.fetch("capabilities", []).join(", ")}")
         else
           output_data(response, headers: nil)
         end
@@ -307,8 +307,8 @@ module Kiket
         if output_format == "human"
           puts ""
           puts pastel.bold("Execution Result:")
-          puts "  Status: #{colorize_status(response["status"])}"
-          puts "  Execution ID: #{response["execution_id"]}"
+          puts("  Status: #{colorize_status(response["status"])}")
+          puts("  Execution ID: #{response["execution_id"]}")
 
           if response["output"]
             puts ""
@@ -319,8 +319,8 @@ module Kiket
 
           if response["metadata"]
             puts ""
-            puts "Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms"
-            puts "Tokens: #{response.dig("metadata", "token_count") || "N/A"}"
+            puts("Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms")
+            puts("Tokens: #{response.dig("metadata", "token_count") || "N/A"}")
           end
         else
           output_data(response, headers: nil)
@@ -461,34 +461,38 @@ module Kiket
 
             # Context validation
             if present?(manifest["context"])
-              unless manifest["context"].is_a?(Hash)
-                errors << "#{file}: 'context' must be a hash with 'required' and/or 'optional' keys"
-              else
+              if manifest["context"].is_a?(Hash)
                 unknown_keys = manifest["context"].keys - %w[required optional]
-                errors << "#{file}: 'context' contains unknown keys: #{unknown_keys.join(', ')}" if unknown_keys.any?
+                errors << "#{file}: 'context' contains unknown keys: #{unknown_keys.join(", ")}" if unknown_keys.any?
 
                 %w[required optional].each do |key|
                   next unless manifest["context"][key]
 
-                  unless manifest["context"][key].is_a?(Array) && manifest["context"][key].all? { |v| v.is_a?(String) && !v.strip.empty? }
-                    errors << "#{file}: 'context.#{key}' must be an array of non-empty strings"
+                  next if manifest["context"][key].is_a?(Array) && manifest["context"][key].all? do |v|
+                    v.is_a?(String) && !v.strip.empty?
                   end
+
+                  errors << "#{file}: 'context.#{key}' must be an array of non-empty strings"
                 end
+              else
+                errors << "#{file}: 'context' must be a hash with 'required' and/or 'optional' keys"
               end
             end
 
             # Human in loop validation
             if present?(manifest["human_in_loop"])
               hil = manifest["human_in_loop"]
-              unless hil.is_a?(Hash)
-                errors << "#{file}: 'human_in_loop' must be a hash"
-              else
+              if hil.is_a?(Hash)
                 unknown_keys = hil.keys.map(&:to_s) - HUMAN_IN_LOOP_ALLOWED_KEYS
-                errors << "#{file}: 'human_in_loop' contains unknown keys: #{unknown_keys.join(', ')}" if unknown_keys.any?
+                if unknown_keys.any?
+                  errors << "#{file}: 'human_in_loop' contains unknown keys: #{unknown_keys.join(", ")}"
+                end
 
-                if hil.key?("required") && ![true, false].include?(hil["required"])
+                if hil.key?("required") && [true, false].exclude?(hil["required"])
                   errors << "#{file}: 'human_in_loop.required' must be true or false"
                 end
+              else
+                errors << "#{file}: 'human_in_loop' must be a hash"
               end
             end
 
@@ -501,9 +505,10 @@ module Kiket
             end
 
             # Optional field warnings
-            warnings << "#{file}: Missing 'description' - recommended for documentation" unless present?(manifest["description"])
+            unless present?(manifest["description"])
+              warnings << "#{file}: Missing 'description' - recommended for documentation"
+            end
             warnings << "#{file}: Missing 'model_version' - should be '1.0'" unless present?(manifest["model_version"])
-
           rescue Psych::SyntaxError => e
             errors << "#{file}: YAML syntax error - #{e.message}"
           rescue StandardError => e
@@ -553,8 +558,8 @@ module Kiket
             puts pastel.bold("Result:")
             puts response.fetch("output", response)
             puts ""
-            puts "Tokens: #{response.dig("metadata", "tokens") || "N/A"}"
-            puts "Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms"
+            puts("Tokens: #{response.dig("metadata", "tokens") || "N/A"}")
+            puts("Duration: #{response.dig("metadata", "duration_ms") || "N/A"}ms")
           else
             output_data(response, headers: nil)
           end
@@ -569,14 +574,14 @@ module Kiket
             { input: input, stream: true },
             params: { organization: org }
           ) do |chunk|
-            print chunk
+            puts chunk
           end
 
           puts ""
         end
 
         def truncate_text(text, length)
-          return "-" if text.nil? || text.empty?
+          return "-" if text.blank?
 
           text.length > length ? "#{text[0...length]}..." : text
         end
@@ -601,7 +606,7 @@ module Kiket
         def format_time(iso_time)
           return "-" unless iso_time
 
-          Time.parse(iso_time).strftime("%Y-%m-%d %H:%M")
+          Time.zone.parse(iso_time).strftime("%Y-%m-%d %H:%M")
         rescue StandardError
           iso_time
         end

@@ -84,15 +84,15 @@ module Kiket
         puts
         puts pastel.bold("Form: #{form["name"]}")
         puts "-" * 50
-        puts "ID:            #{form["id"]}"
-        puts "Key:           #{form["key"]}"
-        puts "Slug:          #{form["slug"]}"
-        puts "Active:        #{form["active"]}"
-        puts "Public:        #{form["public"]}"
-        puts "Embed:         #{form["embed_enabled"]}"
-        puts "Rate Limit:    #{form["rate_limit"]}/hour"
-        puts "Approval:      #{form["requires_approval"] ? "Required" : "Auto-process"}"
-        puts "Created:       #{form["created_at"]}"
+        puts("ID:            #{form["id"]}")
+        puts("Key:           #{form["key"]}")
+        puts("Slug:          #{form["slug"]}")
+        puts("Active:        #{form["active"]}")
+        puts("Public:        #{form["public"]}")
+        puts("Embed:         #{form["embed_enabled"]}")
+        puts("Rate Limit:    #{form["rate_limit"]}/hour")
+        puts("Approval:      #{form["requires_approval"] ? "Required" : "Auto-process"}")
+        puts("Created:       #{form["created_at"]}")
 
         if form["form_url"]
           puts
@@ -104,7 +104,7 @@ module Kiket
           puts pastel.bold("Fields (#{fields.size}):")
           fields.each do |field|
             required = field["required"] ? " (required)" : ""
-            puts "  • #{field["label"]} [#{field["field_type"]}]#{required}"
+            puts("  • #{field["label"]} [#{field["field_type"]}]#{required}")
           end
         end
       rescue StandardError => e
@@ -187,18 +187,18 @@ module Kiket
         puts
         puts pastel.bold("Submission: #{sub["id"]}")
         puts "-" * 50
-        puts "Status:        #{pastel.send(status_color(sub["status"]), sub["status"])}"
-        puts "Submitted By:  #{sub.dig("submitted_by", "name") || "Anonymous"}"
-        puts "Submitted At:  #{sub["submitted_at"]}"
-        puts "IP Address:    #{sub["ip_address"]}"
-        puts "User Agent:    #{sub["user_agent"]&.truncate(60)}"
+        puts("Status:        #{pastel.send(status_color(sub["status"]), sub["status"])}")
+        puts("Submitted By:  #{sub.dig("submitted_by", "name") || "Anonymous"}")
+        puts("Submitted At:  #{sub["submitted_at"]}")
+        puts("IP Address:    #{sub["ip_address"]}")
+        puts("User Agent:    #{sub["user_agent"]&.truncate(60)}")
 
         if sub["processed_at"]
-          puts "Processed At:  #{sub["processed_at"]}"
-          puts "Processed By:  #{sub.dig("approved_by", "name") || "-"}"
+          puts("Processed At:  #{sub["processed_at"]}")
+          puts("Processed By:  #{sub.dig("approved_by", "name") || "-"}")
         end
 
-        puts "Notes:         #{sub["notes"]}" if sub["notes"]
+        puts("Notes:         #{sub["notes"]}") if sub["notes"]
 
         if sub["issue_id"]
           puts
@@ -210,7 +210,7 @@ module Kiket
           puts pastel.bold("Form Data:")
           data.each do |key, value|
             formatted_value = value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value.to_s
-            puts "  #{key}: #{formatted_value.truncate(80)}"
+            puts("  #{key}: #{formatted_value.truncate(80)}")
           end
         end
       rescue StandardError => e
@@ -298,22 +298,22 @@ module Kiket
         puts
         puts pastel.bold("Form Statistics")
         puts "-" * 40
-        puts "Total Submissions:   #{stats["total_submissions"] || 0}"
-        puts "Pending:             #{pastel.yellow(stats["pending"] || 0)}"
-        puts "Approved:            #{pastel.green(stats["approved"] || 0)}"
-        puts "Rejected:            #{pastel.red(stats["rejected"] || 0)}"
-        puts "Converted:           #{pastel.cyan(stats["converted"] || 0)}"
+        puts("Total Submissions:   #{stats["total_submissions"] || 0}")
+        puts("Pending:             #{pastel.yellow(stats["pending"] || 0)}")
+        puts("Approved:            #{pastel.green(stats["approved"] || 0)}")
+        puts("Rejected:            #{pastel.red(stats["rejected"] || 0)}")
+        puts("Converted:           #{pastel.cyan(stats["converted"] || 0)}")
 
         if stats["avg_processing_time"]
           puts
-          puts "Avg Processing Time: #{stats["avg_processing_time"]}"
+          puts("Avg Processing Time: #{stats["avg_processing_time"]}")
         end
 
         if stats["submissions_today"]
           puts
-          puts "Today:               #{stats["submissions_today"]}"
-          puts "This Week:           #{stats["submissions_this_week"]}"
-          puts "This Month:          #{stats["submissions_this_month"]}"
+          puts("Today:               #{stats["submissions_today"]}")
+          puts("This Week:           #{stats["submissions_this_week"]}")
+          puts("This Month:          #{stats["submissions_this_month"]}")
         end
       rescue StandardError => e
         handle_error(e)
@@ -343,17 +343,17 @@ module Kiket
 
         forms = usage["forms"] || {}
         puts "Forms:"
-        puts "  Current:  #{forms["current"] || 0}"
-        puts "  Limit:    #{forms["limit"] || "Unlimited"}"
+        puts("  Current:  #{forms["current"] || 0}")
+        puts("  Limit:    #{forms["limit"] || "Unlimited"}")
         puts "  Status:   #{pastel.send(usage_status_color(forms["status"]), forms["status"] || "ok")}"
 
         submissions = usage["submissions"] || {}
         puts
         puts "Monthly Submissions:"
-        puts "  Current:  #{submissions["current"] || 0}"
-        puts "  Limit:    #{submissions["limit"] || "Unlimited"}"
+        puts("  Current:  #{submissions["current"] || 0}")
+        puts("  Limit:    #{submissions["limit"] || "Unlimited"}")
         puts "  Status:   #{pastel.send(usage_status_color(submissions["status"]), submissions["status"] || "ok")}"
-        puts "  Resets:   #{submissions["resets_at"] || "-"}"
+        puts("  Resets:   #{submissions["resets_at"] || "-"}")
       rescue StandardError => e
         handle_error(e)
       end

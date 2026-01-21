@@ -94,7 +94,7 @@ module Kiket
 
     desc "version", "Show CLI version"
     def version
-      puts "kiket-cli version #{Kiket::VERSION}"
+      puts("kiket-cli version #{Kiket::VERSION}")
     end
   end
 end

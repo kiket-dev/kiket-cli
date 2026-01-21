@@ -80,18 +80,18 @@ module Kiket
         spinner.success("Issue loaded")
 
         if output_format == "human"
-          puts "\n#{pastel.bold(issue["key"] || issue["id"])}: #{issue["title"]}"
+          puts("\n#{pastel.bold(issue["key"] || issue["id"])}: #{issue["title"]}")
           puts ""
-          puts "Status: #{format_status(issue["status"])}"
-          puts "Type: #{issue["issue_type"]}"
-          puts "Priority: #{format_priority(issue["priority"])}"
-          puts "Project: #{issue["project_key"]}"
-          puts "Assignee: #{issue.dig("assignee", "name") || "Unassigned"}"
-          puts "Due Date: #{issue["due_date"] || "Not set"}"
+          puts("Status: #{format_status(issue["status"])}")
+          puts("Type: #{issue["issue_type"]}")
+          puts("Priority: #{format_priority(issue["priority"])}")
+          puts("Project: #{issue["project_key"]}")
+          puts("Assignee: #{issue.dig("assignee", "name") || "Unassigned"}")
+          puts("Due Date: #{issue["due_date"] || "Not set"}")
 
-          puts "Parent: #{issue["parent_key"] || issue["parent_id"]}" if issue["parent_id"]
+          puts("Parent: #{issue["parent_key"] || issue["parent_id"]}") if issue["parent_id"]
 
-          puts "Labels: #{issue["labels"].join(", ")}" if issue["labels"]&.any?
+          puts("Labels: #{issue["labels"].join(", ")}") if issue["labels"]&.any?
 
           if issue["custom_fields"]&.any?
             puts ""
@@ -157,9 +157,9 @@ module Kiket
 
         if output_format == "human"
           success "Created issue '#{issue["title"]}' (#{issue["key"] || issue["id"]})"
-          puts "  Type: #{issue["issue_type"]}"
-          puts "  Status: #{format_status(issue["status"])}"
-          puts "  Priority: #{format_priority(issue["priority"])}"
+          puts("  Type: #{issue["issue_type"]}")
+          puts("  Status: #{format_status(issue["status"])}")
+          puts("  Priority: #{format_priority(issue["priority"])}")
         else
           output_json(issue)
         end
@@ -211,8 +211,8 @@ module Kiket
 
         if output_format == "human"
           success "Updated issue '#{issue["title"]}' (#{issue["key"] || issue["id"]})"
-          puts "  Status: #{format_status(issue["status"])}"
-          puts "  Priority: #{format_priority(issue["priority"])}"
+          puts("  Status: #{format_status(issue["status"])}")
+          puts("  Priority: #{format_priority(issue["priority"])}")
         else
           output_json(issue)
         end
@@ -297,7 +297,7 @@ module Kiket
 
           puts ""
           puts pastel.bold("Priorities:")
-          puts "  #{(response["priorities"] || VALID_PRIORITIES).join(", ")}"
+          puts("  #{(response["priorities"] || VALID_PRIORITIES).join(", ")}")
 
           if (custom_fields = response["custom_fields"])&.any?
             puts ""
@@ -414,7 +414,7 @@ module Kiket
       private
 
       def parse_custom_fields(json_str)
-        return nil if json_str.nil? || json_str.empty?
+        return nil if json_str.blank?
 
         MultiJson.load(json_str)
       rescue MultiJson::ParseError => e

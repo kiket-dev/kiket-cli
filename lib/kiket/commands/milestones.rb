@@ -61,12 +61,12 @@ module Kiket
         spinner.success("Milestone loaded")
 
         if output_format == "human"
-          puts "\n#{pastel.bold(milestone["name"])}"
-          puts "ID: #{milestone["id"]}"
-          puts "Status: #{format_status(milestone["status"])}"
-          puts "Progress: #{milestone["progress"]}%"
-          puts "Target Date: #{milestone["target_date"] || "Not set"}"
-          puts "Version: #{milestone["version"] || "—"}"
+          puts("\n#{pastel.bold(milestone["name"])}")
+          puts("ID: #{milestone["id"]}")
+          puts("Status: #{format_status(milestone["status"])}")
+          puts("Progress: #{milestone["progress"]}%")
+          puts("Target Date: #{milestone["target_date"] || "Not set"}")
+          puts("Version: #{milestone["version"] || "—"}")
           puts ""
           puts "Issues: #{milestone["completed_issue_count"] || 0}/#{milestone["issue_count"] || 0} completed"
           puts "Days Remaining: #{format_days_remaining(milestone["days_remaining"], milestone["overdue"])}"
@@ -114,8 +114,8 @@ module Kiket
 
         if output_format == "human"
           success "Created milestone '#{milestone["name"]}' (ID: #{milestone["id"]})"
-          puts "  Status: #{format_status(milestone["status"])}"
-          puts "  Target Date: #{milestone["target_date"] || "Not set"}"
+          puts("  Status: #{format_status(milestone["status"])}")
+          puts("  Target Date: #{milestone["target_date"] || "Not set"}")
         else
           output_json(milestone)
         end
@@ -157,8 +157,8 @@ module Kiket
 
         if output_format == "human"
           success "Updated milestone '#{milestone["name"]}' (ID: #{milestone["id"]})"
-          puts "  Status: #{format_status(milestone["status"])}"
-          puts "  Progress: #{milestone["progress"]}%"
+          puts("  Status: #{format_status(milestone["status"])}")
+          puts("  Progress: #{milestone["progress"]}%")
         else
           output_json(milestone)
         end

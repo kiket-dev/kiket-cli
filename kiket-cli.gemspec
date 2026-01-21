@@ -36,6 +36,9 @@ Gem::Specification.new do |spec|
   # JSON parsing
   spec.add_dependency "multi_json", "~> 1.15"
 
+  # ActiveSupport for blank/present helpers
+  spec.add_dependency "activesupport", ">= 7.0"
+
   # Terminal output
   spec.add_dependency "pastel", "~> 0.8"
   spec.add_dependency "tty-prompt", "~> 0.23"

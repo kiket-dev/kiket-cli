@@ -384,7 +384,7 @@ module Kiket
                    when :error then pastel.red("✗")
                    end
 
-            puts "  #{icon} #{check[:name]}: #{check[:message]}"
+            puts("  #{icon} #{check[:name]}: #{check[:message]}")
           end
         end
       end

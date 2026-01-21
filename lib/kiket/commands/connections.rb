@@ -63,8 +63,8 @@ module Kiket
 
         unless options[:force]
           puts pastel.bold("\nDisconnect OAuth Connection")
-          puts "  Provider: #{provider_name}"
-          puts "  Account: #{connection["external_email"]}"
+          puts("  Provider: #{provider_name}")
+          puts("  Account: #{connection["external_email"]}")
 
           if consumers.any?
             puts ""
@@ -175,14 +175,17 @@ module Kiket
                           else "?"
                           end
 
-            puts pastel.send(status_color, "#{status_icon} #{conn["provider_name"] || conn["provider_id"]}")
-            puts "    ID: #{conn["id"]}"
-            puts "    Account: #{conn["external_email"]}" if conn["external_email"]
-            puts "    Status: #{conn["status"]}"
-            puts "    Connected: #{format_time(conn["connected_at"])}" if conn["connected_at"]
+            puts pastel.send(status_color,
+                                           "#{status_icon} #{conn["provider_name"] || conn["provider_id"]}")
+            puts("    ID: #{conn["id"]}")
+            puts("    Account: #{conn["external_email"]}") if conn["external_email"]
+            puts("    Status: #{conn["status"]}")
+            puts("    Connected: #{format_time(conn["connected_at"])}") if conn["connected_at"]
 
             consumers = conn["consumer_extensions"] || []
-            puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}" if consumers.any?
+            if consumers.any?
+              puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}"
+            end
 
             puts ""
           end
@@ -197,12 +200,12 @@ module Kiket
           status_color = connection["status"] == "active" ? :green : :red
 
           puts pastel.bold("\nOAuth Connection Details\n")
-          puts "  ID: #{connection["id"]}"
-          puts "  Provider: #{connection["provider_name"] || connection["provider_id"]}"
-          puts "  Account: #{connection["external_email"]}" if connection["external_email"]
-          puts "  Status: #{pastel.send(status_color, connection["status"])}"
-          puts "  Connected: #{format_time(connection["connected_at"])}" if connection["connected_at"]
-          puts "  Expires: #{format_time(connection["expires_at"])}" if connection["expires_at"]
+          puts("  ID: #{connection["id"]}")
+          puts("  Provider: #{connection["provider_name"] || connection["provider_id"]}")
+          puts("  Account: #{connection["external_email"]}") if connection["external_email"]
+          puts("  Status: #{pastel.send(status_color, connection["status"])}")
+          puts("  Connected: #{format_time(connection["connected_at"])}") if connection["connected_at"]
+          puts("  Expires: #{format_time(connection["expires_at"])}") if connection["expires_at"]
 
           scopes = connection["granted_scopes"] || []
           if scopes.any?
@@ -237,11 +240,11 @@ module Kiket
             connected_icon = prov["connected"] ? pastel.green("✓") : "○"
             installed_badge = prov["installed"] ? "" : pastel.dim(" (not installed)")
 
-            puts "#{connected_icon} #{prov["name"] || prov["id"]}#{installed_badge}"
-            puts "    ID: #{prov["id"]}"
+            puts("#{connected_icon} #{prov["name"] || prov["id"]}#{installed_badge}")
+            puts("    ID: #{prov["id"]}")
 
             required_by = prov["required_by"] || []
-            puts "    Required by: #{required_by.join(", ")}" if required_by.any?
+            puts("    Required by: #{required_by.join(", ")}") if required_by.any?
 
             puts ""
           end
@@ -257,10 +260,10 @@ module Kiket
           output_json(provider)
         else
           puts pastel.bold("\nOAuth Provider Details\n")
-          puts "  ID: #{provider["id"]}"
-          puts "  Name: #{provider["name"]}"
-          puts "  Installed: #{provider["installed"] ? "Yes" : "No"}"
-          puts "  Connected: #{provider["connected"] ? "Yes" : "No"}"
+          puts("  ID: #{provider["id"]}")
+          puts("  Name: #{provider["name"]}")
+          puts("  Installed: #{provider["installed"] ? "Yes" : "No"}")
+          puts("  Connected: #{provider["connected"] ? "Yes" : "No"}")
 
           required_by = provider["required_by"] || []
           if required_by.any?
@@ -277,9 +280,9 @@ module Kiket
             puts pastel.bold("  Available Scopes:")
             available_scopes.each do |scope|
               if scope.is_a?(Hash)
-                puts "    - #{scope["id"]}: #{scope["description"]}"
+                puts("    - #{scope["id"]}: #{scope["description"]}")
               else
-                puts "    - #{scope}"
+                puts("    - #{scope}")
               end
             end
           end
@@ -291,7 +294,7 @@ module Kiket
       def format_time(time_str)
         return nil unless time_str
 
-        Time.parse(time_str).strftime("%Y-%m-%d %H:%M:%S")
+        Time.zone.parse(time_str).strftime("%Y-%m-%d %H:%M:%S")
       rescue StandardError
         time_str
       end

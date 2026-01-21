@@ -18,9 +18,7 @@ module Kiket
     def render(template_path, variables = {})
       full_path = File.join(@base_path, template_path)
 
-      unless File.exist?(full_path)
-        raise ArgumentError, "Template not found: #{full_path}"
-      end
+      raise ArgumentError, "Template not found: #{full_path}" unless File.exist?(full_path)
 
       template_content = File.read(full_path)
       context = TemplateContext.new(variables)
@@ -33,9 +31,7 @@ module Kiket
     def copy(template_path, dest_path)
       full_path = File.join(@base_path, template_path)
 
-      unless File.exist?(full_path)
-        raise ArgumentError, "Template not found: #{full_path}"
-      end
+      raise ArgumentError, "Template not found: #{full_path}" unless File.exist?(full_path)
 
       FileUtils.cp(full_path, dest_path)
     end

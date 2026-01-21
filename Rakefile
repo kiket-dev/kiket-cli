@@ -10,14 +10,14 @@ RuboCop::RakeTask.new
 task default: %i[spec rubocop]
 
 desc "Run console with CLI loaded"
-task :console do
+task console: :environment do
   require "pry"
   require_relative "lib/kiket"
   Pry.start
 end
 
 desc "Install CLI locally"
-task :install_local do
+task install_local: :environment do
   sh "gem build kiket-cli.gemspec"
   sh "gem install ./kiket-cli-*.gem"
   sh "rm kiket-cli-*.gem"

@@ -4,6 +4,8 @@ require "yaml"
 require "json"
 require "open3"
 require "time"
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/enumerable"
 
 module Kiket
   module DefinitionTesting
@@ -299,9 +301,7 @@ module Kiket
           return results + [error_result("issue_types", file, "Missing or invalid issue_types array")]
         end
 
-        if issue_types.empty?
-          return results + [error_result("issue_types", file, "issue_types array is empty")]
-        end
+        return results + [error_result("issue_types", file, "issue_types array is empty")] if issue_types.empty?
 
         # Collect workflow files for cross-reference validation
         workflow_dir = File.join(File.dirname(file), "workflows")
@@ -318,9 +318,7 @@ module Kiket
         results = []
         prefix = "Issue type ##{idx + 1}"
 
-        unless type.is_a?(Hash)
-          return [error_result("issue_types", file, "#{prefix} must be an object")]
-        end
+        return [error_result("issue_types", file, "#{prefix} must be an object")] unless type.is_a?(Hash)
 
         key = type["key"]
         if key.to_s.strip.empty?
@@ -331,13 +329,13 @@ module Kiket
         end
 
         color = type["color"]
-        if color.present? && !VALID_COLORS.include?(color.to_s.downcase)
+        if color.present? && VALID_COLORS.exclude?(color.to_s.downcase)
           results << warning_result("issue_types", file,
                                     "#{prefix} color '#{color}' unknown; will default to 'primary'")
         end
 
         icon = type["icon"]
-        if icon.present? && !VALID_ICONS.include?(icon.to_s.downcase.gsub("_", "-"))
+        if icon.present? && VALID_ICONS.exclude?(icon.to_s.downcase.tr("_", "-"))
           results << warning_result("issue_types", file,
                                     "#{prefix} icon '#{icon}' unknown; will default to 'bookmark'")
         end
@@ -353,7 +351,7 @@ module Kiket
           end
 
           # Cross-reference: check if workflow exists
-          if available_workflows.any? && !available_workflows.include?(normalized_workflow_key)
+          if available_workflows.any? && available_workflows.exclude?(normalized_workflow_key)
             results << warning_result("issue_types", file,
                                       "#{prefix} references workflow '#{workflow_key}' but no matching workflow found in #{File.basename(File.dirname(file))}/workflows/")
           end
@@ -511,9 +509,15 @@ module Kiket
         return [error_result("inbound_email", file, "YAML document must be an object")] unless data.is_a?(Hash)
 
         inbound_email = data["inbound_email"]
-        return results + [error_result("inbound_email", file, "Missing inbound_email root key")] unless inbound_email.is_a?(Hash)
+        unless inbound_email.is_a?(Hash)
+          return results + [error_result("inbound_email", file,
+                                         "Missing inbound_email root key")]
+        end
 
-        results << warning_result("inbound_email", file, "inbound_email.enabled is not set") if inbound_email["enabled"].nil?
+        if inbound_email["enabled"].nil?
+          results << warning_result("inbound_email", file,
+                                    "inbound_email.enabled is not set")
+        end
 
         mappings = inbound_email["mappings"]
         if mappings.nil? || !mappings.is_a?(Array)
@@ -533,9 +537,7 @@ module Kiket
         results = []
         prefix = "Mapping ##{idx + 1}"
 
-        unless mapping.is_a?(Hash)
-          return [error_result("inbound_email", file, "#{prefix} must be an object")]
-        end
+        return [error_result("inbound_email", file, "#{prefix} must be an object")] unless mapping.is_a?(Hash)
 
         email_address = mapping["email_address"]
         if email_address.to_s.strip.empty?
@@ -543,22 +545,23 @@ module Kiket
         end
 
         sender_policy = mapping["sender_policy"]
-        if sender_policy.present? && !VALID_SENDER_POLICIES.include?(sender_policy)
+        if sender_policy.present? && VALID_SENDER_POLICIES.exclude?(sender_policy)
           results << error_result("inbound_email", file,
-                                  "#{prefix} has invalid sender_policy '#{sender_policy}'; must be one of: #{VALID_SENDER_POLICIES.join(', ')}")
+                                  "#{prefix} has invalid sender_policy '#{sender_policy}'; must be one of: #{VALID_SENDER_POLICIES.join(", ")}")
         end
 
         issue_defaults = mapping["issue_defaults"]
         if issue_defaults.is_a?(Hash)
           priority = issue_defaults["priority"]
-          if priority.present? && !VALID_PRIORITIES.include?(priority)
+          if priority.present? && VALID_PRIORITIES.exclude?(priority)
             results << error_result("inbound_email", file,
-                                    "#{prefix} has invalid priority '#{priority}'; must be one of: #{VALID_PRIORITIES.join(', ')}")
+                                    "#{prefix} has invalid priority '#{priority}'; must be one of: #{VALID_PRIORITIES.join(", ")}")
           end
         end
 
         if mapping["auto_reply"] && mapping["auto_reply_template"].to_s.strip.empty?
-          results << warning_result("inbound_email", file, "#{prefix} has auto_reply enabled but no auto_reply_template")
+          results << warning_result("inbound_email", file,
+                                    "#{prefix} has auto_reply enabled but no auto_reply_template")
         end
 
         results
@@ -634,7 +637,7 @@ module Kiket
             results << error_result("dbt", file, "Exposure missing #{field}") if exposure[field].to_s.strip.empty?
           end
 
-          if exposure["depends_on"].nil? || exposure["depends_on"].empty?
+          if exposure["depends_on"].blank?
             results << warning_result("dbt", file,
                                       "Exposure '#{exposure["name"] || "unknown"}' has no depends_on entries")
           end

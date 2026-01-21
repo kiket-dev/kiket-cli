@@ -138,7 +138,7 @@ module Kiket
         response = client.get_raw(endpoint, params: params)
         spinner.success
 
-        output_path = options[:output] || "#{report_type.gsub("-", "_")}_#{Date.today}.pdf"
+        output_path = options[:output] || "#{report_type.tr("-", "_")}_#{Time.zone.today}.pdf"
         File.binwrite(output_path, response)
 
         success "Report saved to #{output_path}"
@@ -204,7 +204,7 @@ module Kiket
         rows = anchors.map do |anchor|
           tx_short = anchor["tx_hash"] ? "#{anchor["tx_hash"][0..10]}..." : "-"
           created = begin
-            Time.parse(anchor["created_at"]).strftime("%Y-%m-%d %H:%M")
+            Time.zone.parse(anchor["created_at"]).strftime("%Y-%m-%d %H:%M")
           rescue StandardError
             anchor["created_at"]
           end

@@ -73,12 +73,12 @@ module Kiket
         spinner.success("Project loaded")
 
         if output_format == "human"
-          puts "\n#{pastel.bold(project["name"])}"
+          puts("\n#{pastel.bold(project["name"])}")
           puts ""
-          puts "ID: #{project["id"]}"
-          puts "Key: #{project["project_key"] || "Not set"}"
-          puts "Status: #{project["status"] || "Not set"}"
-          puts "Visibility: #{format_visibility(project["visibility"])}"
+          puts("ID: #{project["id"]}")
+          puts("Key: #{project["project_key"] || "Not set"}")
+          puts("Status: #{project["status"] || "Not set"}")
+          puts("Visibility: #{format_visibility(project["visibility"])}")
 
           if project["description"].to_s.strip != ""
             puts ""
@@ -129,8 +129,8 @@ module Kiket
 
         if output_format == "human"
           success "Created project '#{project["name"]}' (ID: #{project["id"]})"
-          puts "  Key: #{project["project_key"] || "Not set"}"
-          puts "  Visibility: #{format_visibility(project["visibility"])}"
+          puts("  Key: #{project["project_key"] || "Not set"}")
+          puts("  Visibility: #{format_visibility(project["visibility"])}")
         else
           output_json(project)
         end

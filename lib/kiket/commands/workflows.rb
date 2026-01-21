@@ -77,11 +77,11 @@ module Kiket
         end
 
         puts "\nResults:"
-        puts "  Files checked: #{workflow_files.size}"
-        puts "  #{pastel.green("✓ Valid: #{workflow_files.size - errors.size}")}"
-        puts "  #{pastel.red("✗ Errors: #{errors.size}")}" if errors.any?
-        puts "  #{pastel.yellow("⚠ Warnings: #{warnings.size}")}" if warnings.any?
-        puts "  #{pastel.blue("✎ Fixed: #{fixed.size}")}" if fixed.any?
+        puts("  Files checked: #{workflow_files.size}")
+        puts("  #{pastel.green("✓ Valid: #{workflow_files.size - errors.size}")}")
+        puts("  #{pastel.red("✗ Errors: #{errors.size}")}") if errors.any?
+        puts("  #{pastel.yellow("⚠ Warnings: #{warnings.size}")}") if warnings.any?
+        puts("  #{pastel.blue("✎ Fixed: #{fixed.size}")}") if fixed.any?
 
         if errors.any?
           puts "\nErrors:"
@@ -180,24 +180,24 @@ module Kiket
 
         spinner.success("Simulation complete")
 
-        puts "\n#{pastel.bold("Execution Path:")}"
+        puts("\n#{pastel.bold("Execution Path:")}")
         response["execution"]["states_visited"].each_with_index do |state, idx|
           puts "  #{idx + 1}. #{state}"
         end
 
-        puts "\n#{pastel.bold("Actions Executed:")}"
+        puts("\n#{pastel.bold("Actions Executed:")}")
         response["execution"]["actions"].each do |action|
           puts "  • #{action["type"]}: #{action["description"]}"
         end
 
         if response["execution"]["errors"]&.any?
-          puts "\n#{pastel.bold("Errors:")}"
+          puts("\n#{pastel.bold("Errors:")}")
           response["execution"]["errors"].each do |error|
             puts "  #{pastel.red("✗")} #{error}"
           end
         end
 
-        puts "\n#{pastel.bold("Final State:")} #{response["execution"]["final_state"]}"
+        puts("\n#{pastel.bold("Final State:")} #{response["execution"]["final_state"]}")
       rescue JSON::ParserError => e
         error "Invalid JSON in input file: #{e.message}"
         exit 1
@@ -273,13 +273,13 @@ module Kiket
 
         spinner.success("Found #{changed_files.size} changed files")
 
-        puts "\n#{pastel.bold("Changed Workflows:")}"
+        puts("\n#{pastel.bold("Changed Workflows:")}")
         changed_files.each do |file|
           # Get diff stats
           stats, = Open3.capture2("git", "-C", path, "diff", options[:against], "--stat", "--", file)
 
-          puts "  #{pastel.yellow("~")} #{file}"
-          puts "    #{stats.strip}" if verbose?
+          puts("  #{pastel.yellow("~")} #{file}")
+          puts("    #{stats.strip}") if verbose?
         end
       rescue StandardError => e
         handle_error(e)

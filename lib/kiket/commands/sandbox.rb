@@ -12,8 +12,8 @@ module Kiket
         ensure_authenticated!
 
         puts pastel.bold("Launching sandbox environment")
-        puts "Product: #{product_id}"
-        puts "Expires: #{options[:expires_in]}"
+        puts("Product: #{product_id}")
+        puts("Expires: #{options[:expires_in]}")
         puts ""
 
         spinner = spinner("Creating sandbox...")
@@ -37,8 +37,8 @@ module Kiket
         info "Expires: #{sandbox["expires_at"]}"
         puts ""
         info "Login credentials:"
-        puts "  Email: #{sandbox["admin_email"]}"
-        puts "  Password: #{sandbox["admin_password"]}"
+        puts("  Email: #{sandbox["admin_email"]}")
+        puts("  Password: #{sandbox["admin_password"]}")
         puts ""
         warning "Save these credentials - they won't be shown again"
       rescue StandardError => e
@@ -54,9 +54,9 @@ module Kiket
         sandbox = response["sandbox"]
 
         puts pastel.bold("Teardown Sandbox")
-        puts "ID: #{sandbox_id}"
-        puts "Product: #{sandbox["product_name"]}"
-        puts "Organization: #{sandbox["organization_slug"]}"
+        puts("ID: #{sandbox_id}")
+        puts("Product: #{sandbox["product_name"]}")
+        puts("Organization: #{sandbox["organization_slug"]}")
         puts ""
 
         unless options[:force]

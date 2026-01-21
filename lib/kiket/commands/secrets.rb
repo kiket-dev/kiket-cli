@@ -47,7 +47,7 @@ module Kiket
         # Prompt for value if not provided (for sensitive data)
         value ||= prompt.mask("Secret value for #{key}:")
 
-        if value.nil? || value.empty?
+        if value.blank?
           error "Value is required"
           exit 1
         end
@@ -82,7 +82,7 @@ module Kiket
 
         new_value = prompt.mask("New secret value for #{key}:")
 
-        if new_value.nil? || new_value.empty?
+        if new_value.blank?
           error "Value is required"
           exit 1
         end
@@ -153,7 +153,7 @@ module Kiket
 
         File.open(options[:output], "w") do |file|
           file.puts "# Kiket secrets for #{org}"
-          file.puts "# Generated: #{Time.now}"
+          file.puts "# Generated: #{Time.zone.now}"
           file.puts ""
 
           response["secrets"].each do |secret|

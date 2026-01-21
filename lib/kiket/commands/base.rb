@@ -5,6 +5,7 @@ require "tty-prompt"
 require "tty-spinner"
 require "tty-table"
 require "pastel"
+require "active_support/core_ext/module/delegation"
 
 module Kiket
   module Commands
@@ -14,13 +15,9 @@ module Kiket
       end
 
       no_commands do
-        def config
-          Kiket.config
-        end
+        delegate :config, to: :Kiket
 
-        def client
-          Kiket.client
-        end
+        delegate :client, to: :Kiket
 
         def prompt
           @prompt ||= TTY::Prompt.new

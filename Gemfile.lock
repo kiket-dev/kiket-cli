@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     kiket-cli (0.1.0)
+      activesupport (>= 7.0)
       faraday (~> 2.0)
       faraday-retry (~> 2.0)
       multi_json (~> 1.15)
@@ -175,4 +176,4 @@ DEPENDENCIES
   webmock (~> 3.18)
 
 BUNDLED WITH
-   2.7.2
+  4.0.4

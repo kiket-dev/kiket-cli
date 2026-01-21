@@ -74,10 +74,10 @@ module Kiket
                       end
           file_info = result.file ? " (#{relative_path(result.file)})" : ""
           puts format("%s %-#{longest_category}s %s%s",
-                      colorized,
-                      result.category,
-                      result.message,
-                      file_info)
+                                    colorized,
+                                    result.category,
+                                    result.message,
+                                    file_info)
           next unless result.metadata&.any?
 
           result.metadata.each do |key, value|

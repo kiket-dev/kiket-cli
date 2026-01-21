@@ -10,6 +10,8 @@ require "net/http"
 require "uri"
 require "openssl"
 require "securerandom"
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/enumerable"
 
 module Kiket
   module Commands
@@ -399,7 +401,7 @@ module Kiket
 
         remote_url = stdout.strip
 
-        unless remote_url.match?(/github\.com/)
+        unless remote_url.include?("github.com")
           error "Remote must be a GitHub repository"
           info "Current remote: #{remote_url}"
           exit 1
@@ -489,12 +491,12 @@ module Kiket
         commit_sha = commit_sha.strip[0..7]
 
         puts pastel.bold("\nPublish Extension:")
-        puts "  ID: #{manifest.dig("extension", "id")}"
-        puts "  Name: #{manifest.dig("extension", "name")}"
-        puts "  Version: #{manifest.dig("extension", "version")}"
-        puts "  Repository: #{remote_url}"
-        puts "  Ref: #{git_ref}"
-        puts "  Commit: #{commit_sha}"
+        puts("  ID: #{manifest.dig("extension", "id")}")
+        puts("  Name: #{manifest.dig("extension", "name")}")
+        puts("  Version: #{manifest.dig("extension", "version")}")
+        puts("  Repository: #{remote_url}")
+        puts("  Ref: #{git_ref}")
+        puts("  Commit: #{commit_sha}")
         puts ""
 
         if options[:dry_run]
@@ -596,7 +598,7 @@ module Kiket
                  when :warning then pastel.yellow("⚠")
                  when :error then pastel.red("✗")
                  end
-          puts "#{icon} #{check[:name]}: #{check[:message]}"
+          puts("#{icon} #{check[:name]}: #{check[:message]}")
         end
 
         puts ""
@@ -630,7 +632,7 @@ module Kiket
         manifest = YAML.load_file(manifest_path)
         setup_steps = manifest.dig("extension", "setup") || manifest["setup"]
 
-        if setup_steps.nil? || setup_steps.empty?
+        if setup_steps.blank?
           warning "No setup wizard steps found in manifest"
           info "Add 'extension.setup' to your manifest to define wizard steps"
           exit 0
@@ -643,8 +645,8 @@ module Kiket
         end
 
         puts pastel.bold("\nWizard Setup Steps\n")
-        puts "Extension: #{manifest.dig("extension", "name") || manifest["name"]}"
-        puts "Total steps: #{setup_steps.length}\n\n"
+        puts("Extension: #{manifest.dig("extension", "name") || manifest["name"]}")
+        puts("Total steps: #{setup_steps.length}\n\n")
 
         setup_steps.each_with_index do |step, index|
           next if options[:step] && options[:step] != (index + 1)
@@ -653,39 +655,41 @@ module Kiket
           step_config = step[step_type]
 
           puts pastel.cyan("Step #{index + 1}: #{step_type.upcase}")
-          puts "  Title: #{step_config["title"]}" if step_config["title"]
-          puts "  Description: #{step_config["description"]}" if step_config["description"]
+          puts("  Title: #{step_config["title"]}") if step_config["title"]
+          puts("  Description: #{step_config["description"]}") if step_config["description"]
 
           case step_type
           when "secrets"
             fields = step_config["fields"] || []
-            puts "  Fields (#{fields.length}):"
+            puts("  Fields (#{fields.length}):")
             fields.each do |field|
               obtain_type = field.dig("obtain", "type") || "input"
               secret = field.dig("obtain", "secret") ? " 🔒" : ""
-              puts "    - #{field["key"]} (#{obtain_type})#{secret}"
-              puts "      Label: #{field["label"]}" if field["label"]
+              puts("    - #{field["key"]} (#{obtain_type})#{secret}")
+              puts("      Label: #{field["label"]}") if field["label"]
             end
 
           when "configure"
             fields = step_config["fields"] || []
-            puts "  Fields (#{fields.length}):"
+            puts("  Fields (#{fields.length}):")
             fields.each do |field|
               required = field["required"] ? " *" : ""
               show_when = field["showWhen"] ? " [conditional]" : ""
-              puts "    - #{field["key"]} (#{field["type"] || "text"})#{required}#{show_when}"
-              puts "      Label: #{field["label"]}" if field["label"]
+              puts("    - #{field["key"]} (#{field["type"] || "text"})#{required}#{show_when}")
+              puts("      Label: #{field["label"]}") if field["label"]
             end
 
           when "test"
-            puts "  Action: #{step_config["action"]}" if step_config["action"]
-            puts "  Success message: #{step_config["successMessage"]}" if step_config["successMessage"]
+            puts("  Action: #{step_config["action"]}") if step_config["action"]
+            if step_config["successMessage"]
+              puts "  Success message: #{step_config["successMessage"]}"
+            end
 
           when "info"
             content = step_config["content"] || ""
             preview = content.split("\n").first(3).join("\n")
             puts "  Content preview:"
-            puts "    #{preview.gsub("\n", "\n    ")}..."
+            puts("    #{preview.gsub("\n", "\n    ")}...")
             links = step_config["links"] || []
             if links.any?
               puts "  Links:"
@@ -1550,7 +1554,7 @@ module Kiket
           warnings = []
 
           setup_steps = manifest.dig("extension", "setup") || manifest["setup"]
-          return { errors: errors, warnings: warnings } if setup_steps.nil? || setup_steps.empty?
+          return { errors: errors, warnings: warnings } if setup_steps.blank?
 
           setup_steps.each_with_index do |step, index|
             step_num = index + 1
@@ -1578,7 +1582,7 @@ module Kiket
                 errors << "Step #{step_num} (secrets): Field missing required 'key'" unless field["key"]
 
                 obtain_type = field.dig("obtain", "type")
-                if obtain_type && !VALID_OBTAIN_TYPES.include?(obtain_type)
+                if obtain_type && VALID_OBTAIN_TYPES.exclude?(obtain_type)
                   errors << "Step #{step_num}: Invalid obtain type '#{obtain_type}'. Valid: #{VALID_OBTAIN_TYPES.join(", ")}"
                 end
 
@@ -1628,7 +1632,7 @@ module Kiket
 
                 # Validate select options - skip for dynamic field types which resolve options at runtime
                 field_type = field["type"]
-                if field_type == "select" && (field["options"].nil? || field["options"].empty?)
+                if field_type == "select" && field["options"].blank?
                   errors << "Step #{step_num}: Select field '#{field["key"]}' must have options"
                 elsif DYNAMIC_FIELD_TYPES.include?(field_type) && field["options"].present?
                   warnings << "Step #{step_num}: Dynamic field '#{field["key"]}' (type: #{field_type}) has static options that will be ignored"

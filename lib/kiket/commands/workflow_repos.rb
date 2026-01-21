@@ -74,17 +74,17 @@ module Kiket
         spinner.success("Repository loaded")
 
         if output_format == "human"
-          puts "\n#{pastel.bold("Workflow Repository ##{repo["id"]}")}"
+          puts("\n#{pastel.bold("Workflow Repository ##{repo["id"]}")}")
           puts ""
-          puts "GitHub URL: #{repo["github_repo_url"]}"
-          puts "Branch: #{repo["branch"] || "main"}"
-          puts "Workflow Path: #{repo["workflow_path"] || ".kiket/workflows"}"
-          puts "Sync Frequency: #{repo["sync_frequency"] || "on_demand"}"
-          puts "Sync Status: #{format_sync_status(repo["sync_status"])}"
-          puts "Active: #{repo["active"] ? pastel.green("yes") : pastel.red("no")}"
+          puts("GitHub URL: #{repo["github_repo_url"]}")
+          puts("Branch: #{repo["branch"] || "main"}")
+          puts("Workflow Path: #{repo["workflow_path"] || ".kiket/workflows"}")
+          puts("Sync Frequency: #{repo["sync_frequency"] || "on_demand"}")
+          puts("Sync Status: #{format_sync_status(repo["sync_status"])}")
+          puts("Active: #{repo["active"] ? pastel.green("yes") : pastel.red("no")}")
           puts ""
-          puts "Project: #{repo["project_name"] || "Not attached"} (ID: #{repo["project_id"] || "—"})"
-          puts "Created by: #{repo["created_by_name"] || "Unknown"}"
+          puts("Project: #{repo["project_name"] || "Not attached"} (ID: #{repo["project_id"] || "—"})")
+          puts("Created by: #{repo["created_by_name"] || "Unknown"}")
           puts ""
           puts pastel.dim("Last synced: #{repo["last_synced_at"] || "Never"}")
           puts pastel.dim("Created: #{repo["created_at"]}")
@@ -126,8 +126,8 @@ module Kiket
 
         if output_format == "human"
           success "Attached workflow repository to project"
-          puts "  Repository: #{repo["github_repo_url"]}"
-          puts "  Branch: #{repo["branch"]}"
+          puts("  Repository: #{repo["github_repo_url"]}")
+          puts("  Branch: #{repo["branch"]}")
           puts "  Sync started automatically"
         else
           output_json(repo)
@@ -177,8 +177,8 @@ module Kiket
         if output_format == "human"
           success result["message"] || "Sync started"
           if result["workflow_repository"]
-            puts "  Repository: #{result["workflow_repository"]["github_repo_url"]}"
-            puts "  Status: #{format_sync_status(result["workflow_repository"]["sync_status"])}"
+            puts("  Repository: #{result["workflow_repository"]["github_repo_url"]}")
+            puts("  Status: #{format_sync_status(result["workflow_repository"]["sync_status"])}")
           end
         else
           output_json(result)
@@ -221,9 +221,9 @@ module Kiket
 
         if output_format == "human"
           success "Updated workflow repository ##{repo["id"]}"
-          puts "  Repository: #{repo["github_repo_url"]}"
-          puts "  Branch: #{repo["branch"]}"
-          puts "  Active: #{repo["active"] ? "yes" : "no"}"
+          puts("  Repository: #{repo["github_repo_url"]}")
+          puts("  Branch: #{repo["branch"]}")
+          puts("  Active: #{repo["active"] ? "yes" : "no"}")
         else
           output_json(repo)
         end

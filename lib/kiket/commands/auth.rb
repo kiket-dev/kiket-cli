@@ -12,7 +12,7 @@ module Kiket
         api_url = options[:api_url] || config.api_base_url || prompt.ask("API URL:", default: "https://kiket.dev")
         token = options[:token] || prompt.mask("API Token:")
 
-        if token.nil? || token.empty?
+        if token.blank?
           error "Token is required"
           exit 1
         end

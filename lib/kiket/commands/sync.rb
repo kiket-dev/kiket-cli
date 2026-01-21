@@ -99,7 +99,7 @@ module Kiket
         else
           success "Sync started for repository ##{repo["id"]}"
           puts "  Use --wait to wait for completion, or check status with:"
-          puts "  kiket workflow-repo show #{repo["id"]}"
+          puts("  kiket workflow-repo show #{repo["id"]}")
         end
       end
 
@@ -107,7 +107,7 @@ module Kiket
         spinner = spinner("Waiting for sync to complete...")
         spinner.auto_spin
 
-        start_time = Time.now
+        start_time = Time.zone.now
         loop do
           response = client.get("/api/v1/workflow_repositories/#{repo_id}")
           repo = response.is_a?(Hash) && response["data"] ? response["data"] : response
@@ -118,7 +118,7 @@ module Kiket
           when "success", "synced"
             spinner.success("Sync completed successfully")
             success "Repository ##{repo_id} synced successfully"
-            puts "  Last synced: #{repo["last_synced_at"]}"
+            puts("  Last synced: #{repo["last_synced_at"]}")
             return
           when "failed", "error"
             spinner.error("Sync failed")
@@ -126,10 +126,10 @@ module Kiket
             return
           end
 
-          if Time.now - start_time > timeout
+          if Time.zone.now - start_time > timeout
             spinner.error("Timeout")
             warning "Sync still in progress after #{timeout}s. Check status with:"
-            puts "  kiket workflow-repo show #{repo_id}"
+            puts("  kiket workflow-repo show #{repo_id}")
             return
           end
 

@@ -6,6 +6,7 @@ require "json"
 require "fileutils"
 require "pathname"
 require "time"
+require "active_support/core_ext/object/blank"
 
 module Kiket
   module Commands
@@ -157,8 +158,8 @@ module Kiket
         target_version = options[:version] || "latest"
 
         puts pastel.bold("\nUpgrade: #{installation["product_name"]}")
-        puts "Current version: #{current_version}"
-        puts "Target version: #{target_version}"
+        puts("Current version: #{current_version}")
+        puts("Target version: #{target_version}")
         puts ""
 
         # Fetch upgrade preview
@@ -176,7 +177,7 @@ module Kiket
                  when "modify" then pastel.yellow("~")
                  else "•"
                  end
-          puts "  #{icon} #{change["description"]}"
+          puts("  #{icon} #{change["description"]}")
         end
         puts ""
 
@@ -204,7 +205,7 @@ module Kiket
         installation = response["installation"]
 
         puts pastel.bold("\nUninstall: #{installation["product_name"]}")
-        puts "Installation ID: #{installation_id}"
+        puts("Installation ID: #{installation_id}")
         puts ""
 
         unless options[:force]
@@ -235,17 +236,17 @@ module Kiket
           installation = response["installation"]
 
           puts pastel.bold("Installation: #{installation["product_name"] || installation["product_id"]}")
-          puts "ID: #{installation["id"]}"
-          puts "Status: #{format_status(installation["status"])}"
-          puts "Version: #{installation["product_version"]}"
-          puts "Installed: #{installation["installed_at"]}"
+          puts("ID: #{installation["id"]}")
+          puts("Status: #{format_status(installation["status"])}")
+          puts("Version: #{installation["product_version"]}")
+          puts("Installed: #{installation["installed_at"]}")
           puts ""
 
           if installation["health"]
             puts pastel.bold("Health:")
             installation["health"].each do |check, status|
               icon = status["ok"] ? pastel.green("✓") : pastel.red("✗")
-              puts "  #{icon} #{check}: #{status["message"]}"
+              puts("  #{icon} #{check}: #{status["message"]}")
             end
             puts ""
           end
@@ -525,8 +526,8 @@ module Kiket
         info "Expires: #{sandbox["expires_at"]}"
         puts ""
         info "Login credentials:"
-        puts "  Email: #{sandbox["admin_email"]}"
-        puts "  Password: #{sandbox["admin_password"]}"
+        puts("  Email: #{sandbox["admin_email"]}")
+        puts("  Password: #{sandbox["admin_password"]}")
         warning "\nSave these credentials - they will not be shown again."
       rescue StandardError => e
         handle_error(e)
@@ -680,7 +681,7 @@ module Kiket
         success "Scaffold created at #{destination}"
         puts ""
         puts pastel.bold("Next steps:")
-        puts "  1. cd #{destination}"
+        puts("  1. cd #{destination}")
         puts "  2. Review .kiket/manifest.yaml and customize"
         puts "  3. Configure secrets: kiket secrets init"
         puts "  4. Test locally: kiket extensions test"
@@ -799,9 +800,11 @@ module Kiket
         end
 
         product_id = manifest.dig("extension", "id") || manifest["identifier"]
-        puts pastel.bold("Product: ") + (manifest.dig("extension", "name") || manifest["name"] || "Unknown")
+        puts pastel.bold("Product: ") + (manifest.dig("extension",
+                                                                    "name") || manifest["name"] || "Unknown")
         puts pastel.bold("ID: ") + (product_id || "Not set")
-        puts pastel.bold("Version: ") + (manifest.dig("extension", "version") || manifest["version"] || "0.0.0")
+        puts pastel.bold("Version: ") + (manifest.dig("extension",
+                                                                    "version") || manifest["version"] || "0.0.0")
         puts ""
 
         # Check secrets configuration
@@ -1016,8 +1019,8 @@ module Kiket
                      pastel.yellow("[not set - optional]")
                    end
 
-          puts "  #{key}: #{status}"
-          puts "    #{pastel.dim(secret["description"])}" if secret["description"]
+          puts("  #{key}: #{status}")
+          puts("    #{pastel.dim(secret["description"])}") if secret["description"]
         end
         puts ""
       end
@@ -1028,16 +1031,18 @@ module Kiket
         # Check for Python dependencies
         requirements = File.join(path, "requirements.txt")
         pyproject = File.join(path, "pyproject.toml")
-        puts "  Python: #{pastel.green("requirements found")}" if File.exist?(requirements) || File.exist?(pyproject)
+        if File.exist?(requirements) || File.exist?(pyproject)
+          puts("  Python: #{pastel.green("requirements found")}")
+        end
 
         # Check for Node dependencies
         package_json = File.join(path, "package.json")
         if File.exist?(package_json)
           node_modules = File.join(path, "node_modules")
           if Dir.exist?(node_modules)
-            puts "  Node.js: #{pastel.green("dependencies installed")}"
+            puts("  Node.js: #{pastel.green("dependencies installed")}")
           else
-            puts "  Node.js: #{pastel.yellow("run 'npm install'")}"
+            puts("  Node.js: #{pastel.yellow("run 'npm install'")}")
           end
         end
 
@@ -1046,9 +1051,9 @@ module Kiket
         if File.exist?(gemfile)
           gemfile_lock = File.join(path, "Gemfile.lock")
           if File.exist?(gemfile_lock)
-            puts "  Ruby: #{pastel.green("dependencies locked")}"
+            puts("  Ruby: #{pastel.green("dependencies locked")}")
           else
-            puts "  Ruby: #{pastel.yellow("run 'bundle install'")}"
+            puts("  Ruby: #{pastel.yellow("run 'bundle install'")}")
           end
         end
 
@@ -1078,12 +1083,12 @@ module Kiket
           if schema_path
             full_path = File.join(path, schema_path)
             if File.exist?(full_path)
-              puts "  #{module_name}: #{pastel.green("schema found")}"
+              puts("  #{module_name}: #{pastel.green("schema found")}")
             else
-              puts "  #{module_name}: #{pastel.red("schema missing")} (#{schema_path})"
+              puts("  #{module_name}: #{pastel.red("schema missing")} (#{schema_path})")
             end
           else
-            puts "  #{module_name}: #{pastel.yellow("no schema path specified")}"
+            puts("  #{module_name}: #{pastel.yellow("no schema path specified")}")
           end
         end
         puts ""
@@ -1099,7 +1104,7 @@ module Kiket
         puts pastel.bold("CI/CD Configuration")
         workflows.each do |workflow|
           name = File.basename(workflow)
-          puts "  • #{name}"
+          puts("  • #{name}")
         end
         puts ""
       end
@@ -1718,7 +1723,7 @@ module Kiket
           details << repo["url"] if present?(repo["url"])
           slug = repo["slug"]
           details << "(#{slug})" if slug
-          puts "  • #{label} #{details.join(" ")}"
+          puts("  • #{label} #{details.join(" ")}")
         end
         puts ""
       end
@@ -1764,7 +1769,7 @@ module Kiket
                          end
 
           requirement = ext["required"] ? pastel.red("required") : pastel.dim("optional")
-          puts "  • #{ext["extension_id"]} (#{ext["name"]}) - #{status_label}, #{requirement}"
+          puts("  • #{ext["extension_id"]} (#{ext["name"]}) - #{status_label}, #{requirement}")
 
           secrets = Array(ext["secrets"])
           missing = Array(ext["missing_secrets"])
@@ -2139,9 +2144,9 @@ module Kiket
 
         window_hours = (response["window_seconds"].to_i / 3600.0).round(1)
         puts pastel.bold("\nMarketplace Telemetry")
-        puts "Window: last #{window_hours}h"
-        puts "Requests: #{total}"
-        puts "Errors: #{response["error_count"]} (#{response["error_rate"]}%)"
+        puts("Window: last #{window_hours}h")
+        puts("Requests: #{total}")
+        puts("Errors: #{response["error_count"]} (#{response["error_rate"]}%)")
         puts "Latency: avg #{response["avg_latency_ms"] || "—"}ms · p95 #{response["p95_latency_ms"] || "—"}ms"
         puts ""
 
@@ -2163,7 +2168,7 @@ module Kiket
 
         recent_errors = Array(response["recent_errors"])
         if recent_errors.any?
-          puts "\n#{pastel.bold("Recent errors")}"
+          puts("\n#{pastel.bold("Recent errors")}")
           recent_errors.each do |entry|
             puts "- #{entry["name"]} (#{entry["extension_id"]}) #{entry["event"]}: #{entry["error_message"]} [#{entry["occurred_at"]}]"
           end
