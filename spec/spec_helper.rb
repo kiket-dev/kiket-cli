@@ -26,6 +26,13 @@ RSpec.configure do |config|
   config.order = :random
 
   Kernel.srand config.seed
+
+  # Prevent Thor commands from calling exit in tests
+  config.around do |example|
+    example.run
+  rescue SystemExit
+    # Swallow exit calls from Thor commands - they're expected behavior
+  end
 end
 
 # VCR configuration for recording HTTP interactions

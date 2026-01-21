@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-gem "kiket-sdk", "~> 0.1.0"
+gem 'kiket-sdk', '~> 0.1.0'
 
 group :development, :test do
-  gem "rspec"
-  gem "rubocop"
-  gem "rubocop-rspec"
+  gem 'rspec'
+  gem 'rubocop'
+  gem 'rubocop-rspec'
 end

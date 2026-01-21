@@ -204,9 +204,7 @@ module Kiket
         warnings << "Missing model_version (recommended: \"1.0\")" unless manifest["model_version"]
 
         # Require nested extension block (canonical format)
-        unless manifest["extension"].is_a?(Hash)
-          errors << "Missing 'extension:' block - use nested format with model_version: \"1.0\""
-        end
+        errors << "Missing 'extension:' block - use nested format with model_version: \"1.0\"" unless manifest["extension"].is_a?(Hash)
 
         # Required fields - only accept nested extension.id format
         extension_id = manifest.dig("extension", "id")
@@ -215,22 +213,16 @@ module Kiket
         errors << "Missing extension.name" unless extension_name
 
         # Validate extension ID format
-        if extension_id && !extension_id.match?(/^[a-z][a-z0-9.-]+$/)
-          warnings << "extension.id should use lowercase with dots (e.g., dev.kiket.ext.myextension)"
-        end
+        warnings << "extension.id should use lowercase with dots (e.g., dev.kiket.ext.myextension)" if extension_id && !extension_id.match?(/^[a-z][a-z0-9.-]+$/)
 
         # Validate delivery configuration - only accept string format with callback block
         delivery = manifest.dig("extension", "delivery")
         errors << "Missing extension.delivery" unless delivery
 
         if delivery
-          unless delivery.is_a?(String)
-            errors << "extension.delivery must be a string ('http' or 'internal'), not a hash"
-          end
+          errors << "extension.delivery must be a string ('http' or 'internal'), not a hash" unless delivery.is_a?(String)
 
-          unless %w[http internal].include?(delivery)
-            errors << "extension.delivery must be 'http' or 'internal', got '#{delivery}'"
-          end
+          errors << "extension.delivery must be 'http' or 'internal', got '#{delivery}'" unless %w[http internal].include?(delivery)
 
           if delivery == "http"
             callback = manifest.dig("extension", "callback")
@@ -240,9 +232,7 @@ module Kiket
             errors << "Missing extension.callback.url" unless callback_url
 
             timeout = callback&.dig("timeout")
-            if timeout && (timeout < 100 || timeout > 60_000)
-              errors << "extension.callback.timeout must be between 100 and 60000ms"
-            end
+            errors << "extension.callback.timeout must be between 100 and 60000ms" if timeout && (timeout < 100 || timeout > 60_000)
           end
         end
 
@@ -256,9 +246,7 @@ module Kiket
         # Validate sdk field
         sdk_value = manifest.dig("extension", "sdk")
         if sdk_value
-          unless VALID_SDK_VALUES.include?(sdk_value)
-            errors << "Invalid extension.sdk value '#{sdk_value}'. Valid: #{VALID_SDK_VALUES.join(", ")}"
-          end
+          errors << "Invalid extension.sdk value '#{sdk_value}'. Valid: #{VALID_SDK_VALUES.join(", ")}" unless VALID_SDK_VALUES.include?(sdk_value)
         else
           warnings << "Missing extension.sdk field (recommended for deployment)"
         end
@@ -681,9 +669,7 @@ module Kiket
 
           when "test"
             puts("  Action: #{step_config["action"]}") if step_config["action"]
-            if step_config["successMessage"]
-              puts "  Success message: #{step_config["successMessage"]}"
-            end
+            puts "  Success message: #{step_config["successMessage"]}" if step_config["successMessage"]
 
           when "info"
             content = step_config["content"] || ""
@@ -1505,15 +1491,11 @@ module Kiket
             module_id = module_value
 
             # Validate module ID format
-            unless module_id.match?(/^[a-z][a-z0-9.-]+$/)
-              warnings << "#{relative_to_repo(file)} module ID should use lowercase with dots (e.g., dev.kiket.ext.myextension.data)"
-            end
+            warnings << "#{relative_to_repo(file)} module ID should use lowercase with dots (e.g., dev.kiket.ext.myextension.data)" unless module_id.match?(/^[a-z][a-z0-9.-]+$/)
 
             # Tables must be at root level
             tables = data["tables"]
-            if tables.nil? || (tables.is_a?(Hash) && tables.empty?) || (tables.is_a?(Array) && tables.empty?)
-              errors << "#{relative_to_repo(file)} must define at least one table"
-            end
+            errors << "#{relative_to_repo(file)} must define at least one table" if tables.nil? || (tables.is_a?(Hash) && tables.empty?) || (tables.is_a?(Array) && tables.empty?)
 
             local_modules[module_id] = file
           rescue Psych::SyntaxError => e
@@ -1527,9 +1509,7 @@ module Kiket
 
             ops = Array(entry["operations"] || entry[:operations]).map(&:to_s)
             invalid = ops.reject { |op| %w[read write delete admin].include?(op) }
-            if invalid.any?
-              errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(", ")}"
-            end
+            errors << "custom_data permission for #{module_id} has invalid operations #{invalid.join(", ")}" if invalid.any?
           end
 
           missing_permissions = local_modules.keys.reject do |module_id|
@@ -1573,28 +1553,20 @@ module Kiket
               fields = step_config["fields"] || []
               collect_keys = step_config["collect"] || []
 
-              if fields.empty? && collect_keys.empty?
-                errors << "Step #{step_num} (secrets): Must define 'fields' or 'collect'"
-              end
+              errors << "Step #{step_num} (secrets): Must define 'fields' or 'collect'" if fields.empty? && collect_keys.empty?
 
               # Validate inline fields
               fields.each do |field|
                 errors << "Step #{step_num} (secrets): Field missing required 'key'" unless field["key"]
 
                 obtain_type = field.dig("obtain", "type")
-                if obtain_type && VALID_OBTAIN_TYPES.exclude?(obtain_type)
-                  errors << "Step #{step_num}: Invalid obtain type '#{obtain_type}'. Valid: #{VALID_OBTAIN_TYPES.join(", ")}"
-                end
+                errors << "Step #{step_num}: Invalid obtain type '#{obtain_type}'. Valid: #{VALID_OBTAIN_TYPES.join(", ")}" if obtain_type && VALID_OBTAIN_TYPES.exclude?(obtain_type)
 
                 # OAuth fields require authorization_url and token_url
                 next unless %w[oauth2 oauth2_client_credentials].include?(obtain_type)
 
-                unless field.dig("obtain", "authorization_url")
-                  errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing authorization_url"
-                end
-                unless field.dig("obtain", "token_url")
-                  errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing token_url"
-                end
+                errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing authorization_url" unless field.dig("obtain", "authorization_url")
+                errors << "Step #{step_num}: OAuth field '#{field["key"]}' missing token_url" unless field.dig("obtain", "token_url")
               end
 
               # Validate collect references against configuration
@@ -1602,9 +1574,7 @@ module Kiket
                 config_keys = extract_config_keys(manifest)
 
                 collect_keys.each do |key|
-                  unless config_keys.include?(key)
-                    warnings << "Step #{step_num} (secrets): collect references '#{key}' not found in configuration"
-                  end
+                  warnings << "Step #{step_num} (secrets): collect references '#{key}' not found in configuration" unless config_keys.include?(key)
                 end
               end
 
@@ -1613,9 +1583,7 @@ module Kiket
               fields = step_config["fields"] || []
               collect_keys = step_config["collect"] || []
 
-              if fields.empty? && collect_keys.empty?
-                warnings << "Step #{step_num} (configure): No fields or collect defined"
-              end
+              warnings << "Step #{step_num} (configure): No fields or collect defined" if fields.empty? && collect_keys.empty?
 
               # Validate inline fields
               fields.each do |field|
@@ -1625,9 +1593,7 @@ module Kiket
                 if field["showWhen"]
                   show_when = field["showWhen"]
                   ref_field = show_when["field"]
-                  unless fields.any? { |f| f["key"] == ref_field }
-                    warnings << "Step #{step_num}: showWhen references unknown field '#{ref_field}'"
-                  end
+                  warnings << "Step #{step_num}: showWhen references unknown field '#{ref_field}'" unless fields.any? { |f| f["key"] == ref_field }
                 end
 
                 # Validate select options - skip for dynamic field types which resolve options at runtime
@@ -1644,26 +1610,18 @@ module Kiket
                 config_keys = extract_config_keys(manifest)
 
                 collect_keys.each do |key|
-                  unless config_keys.include?(key)
-                    warnings << "Step #{step_num} (configure): collect references '#{key}' not found in configuration"
-                  end
+                  warnings << "Step #{step_num} (configure): collect references '#{key}' not found in configuration" unless config_keys.include?(key)
                 end
               end
 
             when "test"
-              unless step_config["action"]
-                warnings << "Step #{step_num} (test): No action defined - step will be skipped"
-              end
+              warnings << "Step #{step_num} (test): No action defined - step will be skipped" unless step_config["action"]
 
             when "info"
-              unless step_config["content"] || step_config["title"]
-                warnings << "Step #{step_num} (info): No content or title defined"
-              end
+              warnings << "Step #{step_num} (info): No content or title defined" unless step_config["content"] || step_config["title"]
 
               (step_config["links"] || []).each do |link|
-                unless link["url"] && link["label"]
-                  errors << "Step #{step_num} (info): Links must have 'url' and 'label'"
-                end
+                errors << "Step #{step_num} (info): Links must have 'url' and 'label'" unless link["url"] && link["label"]
               end
             end
           end

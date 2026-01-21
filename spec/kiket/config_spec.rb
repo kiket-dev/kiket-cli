@@ -5,6 +5,11 @@ require "spec_helper"
 RSpec.describe Kiket::Config do
   describe "#initialize" do
     it "sets default values" do
+      # Ensure no environment variables interfere with defaults
+      allow(ENV).to receive(:[]).with("KIKET_API_URL").and_return(nil)
+      allow(ENV).to receive(:fetch).with("KIKET_API_TOKEN", nil).and_return(nil)
+      allow(ENV).to receive(:fetch).with("KIKET_DEFAULT_ORG", nil).and_return(nil)
+
       config = described_class.new
       expect(config.api_base_url).to eq("https://kiket.dev")
       expect(config.output_format).to eq("human")

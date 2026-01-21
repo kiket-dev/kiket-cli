@@ -50,9 +50,7 @@ module Kiket
           if diagnostics.nil?
             checks << diagnostics_warning
           else
-            if options[:extensions] || options[:product]
-              checks.concat(extension_diagnostic_checks(diagnostics[:extensions]))
-            end
+            checks.concat(extension_diagnostic_checks(diagnostics[:extensions])) if options[:extensions] || options[:product]
 
             checks.concat(definition_diagnostic_checks(diagnostics[:definitions])) if options[:workflows]
           end

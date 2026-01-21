@@ -48,7 +48,7 @@ module Kiket
     end
 
     def authenticated?
-      api_token.present?
+      !api_token.nil? && !api_token.empty?
     end
 
     def self.symbolize_keys(hash)

@@ -231,11 +231,8 @@ module Kiket
         spinner = spinner("Approving submission...")
         spinner.auto_spin
 
-        client.post("/api/v1/intake_forms/#{form_key}/submissions/#{submission_id}/approve", {
-          organization: org,
-          project_id: options[:project],
-          notes: options[:notes]
-        }.compact)
+        client.post("/api/v1/intake_forms/#{form_key}/submissions/#{submission_id}/approve",
+                    body: { organization: org, project_id: options[:project], notes: options[:notes] }.compact)
 
         spinner.success("Submission approved")
         success "Submission #{submission_id} has been approved"
@@ -257,11 +254,8 @@ module Kiket
         spinner = spinner("Rejecting submission...")
         spinner.auto_spin
 
-        client.post("/api/v1/intake_forms/#{form_key}/submissions/#{submission_id}/reject", {
-          organization: org,
-          project_id: options[:project],
-          notes: options[:notes]
-        }.compact)
+        client.post("/api/v1/intake_forms/#{form_key}/submissions/#{submission_id}/reject",
+                    body: { organization: org, project_id: options[:project], notes: options[:notes] }.compact)
 
         spinner.success("Submission rejected")
         success "Submission #{submission_id} has been rejected"

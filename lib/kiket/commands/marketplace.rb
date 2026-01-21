@@ -106,9 +106,7 @@ module Kiket
         puts ""
 
         # Confirm installation
-        if !(options[:non_interactive] || options[:dry_run]) && !prompt.yes?("Install #{product["name"]} to #{org}?")
-          return
-        end
+        return if !(options[:non_interactive] || options[:dry_run]) && !prompt.yes?("Install #{product["name"]} to #{org}?")
 
         # Prepare installation payload
         payload = {
@@ -285,8 +283,8 @@ module Kiket
 
       option :path, type: :string, desc: "Path to blueprint YAML (defaults to config/marketplace/blueprints/<id>.yml)"
       option :fix, type: :boolean, desc: "Rewrite YAML with canonical formatting"
-      desc "validate IDENTIFIER", "Validate a marketplace blueprint definition"
-      def validate(identifier)
+      desc "lint_blueprint IDENTIFIER", "Validate a marketplace blueprint definition"
+      def lint_blueprint(identifier)
         path = options[:path] || File.join("config", "marketplace", "blueprints", "#{identifier}.yml")
         unless File.exist?(path)
           error "Blueprint not found at #{path}"
@@ -801,10 +799,10 @@ module Kiket
 
         product_id = manifest.dig("extension", "id") || manifest["identifier"]
         puts pastel.bold("Product: ") + (manifest.dig("extension",
-                                                                    "name") || manifest["name"] || "Unknown")
+                                                      "name") || manifest["name"] || "Unknown")
         puts pastel.bold("ID: ") + (product_id || "Not set")
         puts pastel.bold("Version: ") + (manifest.dig("extension",
-                                                                    "version") || manifest["version"] || "0.0.0")
+                                                      "version") || manifest["version"] || "0.0.0")
         puts ""
 
         # Check secrets configuration
@@ -1031,9 +1029,7 @@ module Kiket
         # Check for Python dependencies
         requirements = File.join(path, "requirements.txt")
         pyproject = File.join(path, "pyproject.toml")
-        if File.exist?(requirements) || File.exist?(pyproject)
-          puts("  Python: #{pastel.green("requirements found")}")
-        end
+        puts("  Python: #{pastel.green("requirements found")}") if File.exist?(requirements) || File.exist?(pyproject)
 
         # Check for Node dependencies
         package_json = File.join(path, "package.json")
@@ -1821,9 +1817,7 @@ module Kiket
           issues << "Missing #{key}" if blueprint[key].to_s.strip.empty?
         end
 
-        unless blueprint["identifier"].to_s == identifier.to_s
-          issues << "Identifier mismatch (expected #{identifier}, found #{blueprint["identifier"]})"
-        end
+        issues << "Identifier mismatch (expected #{identifier}, found #{blueprint["identifier"]})" unless blueprint["identifier"].to_s == identifier.to_s
 
         metadata = blueprint["metadata"] || {}
         issues << "metadata.pricing.model is required" if metadata.dig("pricing", "model").to_s.empty?

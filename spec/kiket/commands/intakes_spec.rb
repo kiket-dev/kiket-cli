@@ -131,7 +131,8 @@ RSpec.describe Kiket::Commands::Intakes do
   describe "#approve" do
     it "approves a pending submission" do
       expect(client).to receive(:post)
-        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/approve", hash_including(organization: "acme"))
+        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/approve",
+              body: hash_including(organization: "acme"))
 
       expect do
         described_class.start(["approve", "bug-report", "sub-1", "--project", "proj-1"])
@@ -140,7 +141,8 @@ RSpec.describe Kiket::Commands::Intakes do
 
     it "includes notes when provided" do
       expect(client).to receive(:post)
-        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/approve", hash_including(notes: "Looks good"))
+        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/approve",
+              body: hash_including(notes: "Looks good"))
 
       expect do
         described_class.start(["approve", "bug-report", "sub-1", "--project", "proj-1", "--notes", "Looks good"])
@@ -151,7 +153,8 @@ RSpec.describe Kiket::Commands::Intakes do
   describe "#reject" do
     it "rejects a pending submission" do
       expect(client).to receive(:post)
-        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/reject", hash_including(organization: "acme"))
+        .with("/api/v1/intake_forms/bug-report/submissions/sub-1/reject",
+              body: hash_including(organization: "acme"))
 
       expect do
         described_class.start(["reject", "bug-report", "sub-1", "--project", "proj-1"])

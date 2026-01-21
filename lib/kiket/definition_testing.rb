@@ -42,9 +42,7 @@ module Kiket
         results.concat(IssueTypesLinter.new(@root).lint) if @include_issue_types
         results.concat(DashboardLinter.new(@root).lint) if @include_dashboards
         results.concat(InboundEmailLinter.new(@root).lint) if @include_inbound_email
-        if @include_dbt
-          results.concat(DbtLinter.new(@root, project_path: @dbt_project_path, run_cli: @run_dbt_cli).lint)
-        end
+        results.concat(DbtLinter.new(@root, project_path: @dbt_project_path, run_cli: @run_dbt_cli).lint) if @include_dbt
         results
       end
 
@@ -163,9 +161,7 @@ module Kiket
         data = load_yaml(file)
         return [data] if data.is_a?(Result) # error result
 
-        if data.is_a?(Hash) && data.key?("recipe")
-          return [info_result("workflows", file, "Skipped automation recipe definition")]
-        end
+        return [info_result("workflows", file, "Skipped automation recipe definition")] if data.is_a?(Hash) && data.key?("recipe")
 
         results = []
 
@@ -297,9 +293,7 @@ module Kiket
         results << warning_result("issue_types", file, "Missing model_version") unless model_version
 
         issue_types = data["issue_types"]
-        unless issue_types.is_a?(Array)
-          return results + [error_result("issue_types", file, "Missing or invalid issue_types array")]
-        end
+        return results + [error_result("issue_types", file, "Missing or invalid issue_types array")] unless issue_types.is_a?(Array)
 
         return results + [error_result("issue_types", file, "issue_types array is empty")] if issue_types.empty?
 
@@ -454,9 +448,7 @@ module Kiket
         end
 
         alerts = dashboard["alerts"]
-        if alerts && !alerts.is_a?(Array)
-          results << error_result("dashboards", file, "dashboard.alerts must be an array")
-        end
+        results << error_result("dashboards", file, "dashboard.alerts must be an array") if alerts && !alerts.is_a?(Array)
 
         results.empty? ? [success_result("dashboards", file, "Dashboard lint passed")] : results
       end
@@ -540,9 +532,7 @@ module Kiket
         return [error_result("inbound_email", file, "#{prefix} must be an object")] unless mapping.is_a?(Hash)
 
         email_address = mapping["email_address"]
-        if email_address.to_s.strip.empty?
-          results << error_result("inbound_email", file, "#{prefix} missing email_address")
-        end
+        results << error_result("inbound_email", file, "#{prefix} missing email_address") if email_address.to_s.strip.empty?
 
         sender_policy = mapping["sender_policy"]
         if sender_policy.present? && VALID_SENDER_POLICIES.exclude?(sender_policy)
@@ -663,9 +653,7 @@ module Kiket
           cmd += ["--profiles-dir", profiles_dir] if Dir.exist?(profiles_dir)
 
           stdout, stderr, status = Open3.capture3(*cmd)
-          unless status.success?
-            return [error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr)]
-          end
+          return [error_result("dbt", @project_path, "dbt parse failed", stdout: stdout, stderr: stderr)] unless status.success?
         end
 
         [success_result("dbt", @project_path, "dbt parse succeeded")]

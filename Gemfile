@@ -9,6 +9,7 @@ group :development, :test do
   gem "rake", "~> 13.0"
   gem "rspec", "~> 3.12"
   gem "rubocop", "~> 1.80"
+  gem "rubocop-performance", "~> 1.23"
   gem "rubocop-rails-omakase"
   gem "rubocop-rspec", "~> 3.0"
   gem "vcr", "~> 6.1"

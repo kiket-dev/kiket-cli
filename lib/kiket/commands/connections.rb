@@ -176,16 +176,14 @@ module Kiket
                           end
 
             puts pastel.send(status_color,
-                                           "#{status_icon} #{conn["provider_name"] || conn["provider_id"]}")
+                             "#{status_icon} #{conn["provider_name"] || conn["provider_id"]}")
             puts("    ID: #{conn["id"]}")
             puts("    Account: #{conn["external_email"]}") if conn["external_email"]
             puts("    Status: #{conn["status"]}")
             puts("    Connected: #{format_time(conn["connected_at"])}") if conn["connected_at"]
 
             consumers = conn["consumer_extensions"] || []
-            if consumers.any?
-              puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}"
-            end
+            puts "    Used by: #{consumers.map { |c| c["name"] || c["id"] }.join(", ")}" if consumers.any?
 
             puts ""
           end

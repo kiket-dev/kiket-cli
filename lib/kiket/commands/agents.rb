@@ -70,9 +70,7 @@ module Kiket
 
         response = client.get("/api/v1/projects/#{project_id}/agents", params: { organization: org })
         entries = response.fetch("agents", [])
-        if options[:capability]
-          entries = entries.select { |entry| Array(entry["capabilities"]).include?(options[:capability]) }
-        end
+        entries = entries.select { |entry| Array(entry["capabilities"]).include?(options[:capability]) } if options[:capability]
 
         if output_format == "human"
           if entries.empty?
@@ -445,9 +443,7 @@ module Kiket
             errors << "#{file}: Missing required field 'prompt'" unless present?(manifest["prompt"])
 
             # ID format validation
-            if present?(manifest["id"]) && !manifest["id"].to_s.match?(ID_PATTERN)
-              errors << "#{file}: Invalid id format '#{manifest["id"]}' - must be lowercase alphanumeric with dots, hyphens, or underscores"
-            end
+            errors << "#{file}: Invalid id format '#{manifest["id"]}' - must be lowercase alphanumeric with dots, hyphens, or underscores" if present?(manifest["id"]) && !manifest["id"].to_s.match?(ID_PATTERN)
 
             # Capabilities validation
             capabilities = manifest["capabilities"]
@@ -484,13 +480,9 @@ module Kiket
               hil = manifest["human_in_loop"]
               if hil.is_a?(Hash)
                 unknown_keys = hil.keys.map(&:to_s) - HUMAN_IN_LOOP_ALLOWED_KEYS
-                if unknown_keys.any?
-                  errors << "#{file}: 'human_in_loop' contains unknown keys: #{unknown_keys.join(", ")}"
-                end
+                errors << "#{file}: 'human_in_loop' contains unknown keys: #{unknown_keys.join(", ")}" if unknown_keys.any?
 
-                if hil.key?("required") && [true, false].exclude?(hil["required"])
-                  errors << "#{file}: 'human_in_loop.required' must be true or false"
-                end
+                errors << "#{file}: 'human_in_loop.required' must be true or false" if hil.key?("required") && [true, false].exclude?(hil["required"])
               else
                 errors << "#{file}: 'human_in_loop' must be a hash"
               end
@@ -499,15 +491,11 @@ module Kiket
             # Confidence threshold validation
             if present?(manifest["confidence_threshold"])
               threshold = manifest["confidence_threshold"]
-              unless threshold.is_a?(Numeric) && threshold.between?(0.0, 1.0)
-                errors << "#{file}: 'confidence_threshold' must be a number between 0.0 and 1.0"
-              end
+              errors << "#{file}: 'confidence_threshold' must be a number between 0.0 and 1.0" unless threshold.is_a?(Numeric) && threshold.between?(0.0, 1.0)
             end
 
             # Optional field warnings
-            unless present?(manifest["description"])
-              warnings << "#{file}: Missing 'description' - recommended for documentation"
-            end
+            warnings << "#{file}: Missing 'description' - recommended for documentation" unless present?(manifest["description"])
             warnings << "#{file}: Missing 'model_version' - should be '1.0'" unless present?(manifest["model_version"])
           rescue Psych::SyntaxError => e
             errors << "#{file}: YAML syntax error - #{e.message}"
