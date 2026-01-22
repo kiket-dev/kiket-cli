@@ -253,6 +253,12 @@ module Kiket
           warnings << "Missing extension.sdk field (recommended for deployment)"
         end
 
+        # Validate api_version field (optional, defaults to v1)
+        api_version = manifest.dig("extension", "api_version")
+        if api_version
+          errors << "Invalid extension.api_version '#{api_version}'. Must match pattern v[0-9]+ (e.g., v1, v2)" unless api_version.match?(/^v\d+$/)
+        end
+
         custom_data_results = validate_custom_data_assets(path, manifest)
         errors.concat(custom_data_results[:errors])
         warnings.concat(custom_data_results[:warnings])
@@ -1000,6 +1006,7 @@ module Kiket
             "id" => resolved_id,
             "name" => name,
             "version" => "1.0.0",
+            "api_version" => "v1",
             "description" => "Description of #{name}",
             "setup" => generate_wizard_steps_for_template(template_type, name)
           },
