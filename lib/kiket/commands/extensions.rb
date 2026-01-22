@@ -255,9 +255,7 @@ module Kiket
 
         # Validate api_version field (optional, defaults to v1)
         api_version = manifest.dig("extension", "api_version")
-        if api_version
-          errors << "Invalid extension.api_version '#{api_version}'. Must match pattern v[0-9]+ (e.g., v1, v2)" unless api_version.match?(/^v\d+$/)
-        end
+        errors << "Invalid extension.api_version '#{api_version}'. Must match pattern v[0-9]+ (e.g., v1, v2)" if api_version && !api_version.match?(/^v\d+$/)
 
         custom_data_results = validate_custom_data_assets(path, manifest)
         errors.concat(custom_data_results[:errors])
