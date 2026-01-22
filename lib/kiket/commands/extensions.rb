@@ -65,6 +65,8 @@ module Kiket
       VALID_SDK_VALUES = %w[ruby python node java dotnet go].freeze
       # Dynamic field types resolve their options from project context at runtime
       DYNAMIC_FIELD_TYPES = %w[issue_type workflow_status board priority project].freeze
+      # Output field display types
+      VALID_OUTPUT_FIELD_TYPES = %w[copyable url code badge status].freeze
 
       map(
         "custom-data:list" => :custom_data_list,
@@ -259,6 +261,11 @@ module Kiket
         wizard_results = validate_wizard_setup(manifest)
         errors.concat(wizard_results[:errors])
         warnings.concat(wizard_results[:warnings])
+
+        # Validate output_fields schema
+        output_fields_results = validate_output_fields(manifest)
+        errors.concat(output_fields_results[:errors])
+        warnings.concat(output_fields_results[:warnings])
 
         spinner.stop
 
@@ -1636,6 +1643,46 @@ module Kiket
           return [] unless config.is_a?(Hash)
 
           config.keys.map(&:to_s)
+        end
+
+        # Validate output_fields schema
+        def validate_output_fields(manifest)
+          errors = []
+          warnings = []
+
+          output_fields = manifest.dig("extension", "output_fields")
+          return { errors: errors, warnings: warnings } if output_fields.blank?
+
+          unless output_fields.is_a?(Hash)
+            errors << "output_fields must be a hash mapping field keys to their schemas"
+            return { errors: errors, warnings: warnings }
+          end
+
+          output_fields.each do |key, schema|
+            errors << "output_fields: '#{key}' must be lowercase with underscores (e.g., inbound_email)" unless key.match?(/^[a-z][a-z0-9_]*$/)
+
+            unless schema.is_a?(Hash)
+              errors << "output_fields.#{key}: must be a hash with label, type, etc."
+              next
+            end
+
+            # Required: label
+            warnings << "output_fields.#{key}: missing 'label' field" unless schema["label"]
+
+            # Validate type
+            field_type = schema["type"]
+            errors << "output_fields.#{key}: invalid type '#{field_type}'. Valid: #{VALID_OUTPUT_FIELD_TYPES.join(", ")}" if field_type.present? && VALID_OUTPUT_FIELD_TYPES.exclude?(field_type)
+
+            # Validate icon if present (should be a Bootstrap icon name)
+            icon = schema["icon"]
+            warnings << "output_fields.#{key}: icon '#{icon}' should be a Bootstrap icon name (e.g., envelope, link)" if icon.present? && !icon.match?(/^[a-z0-9-]+$/)
+
+            # Validate help_url if present
+            help_url = schema["help_url"]
+            errors << "output_fields.#{key}: help_url must be a valid HTTP(S) URL" if help_url.present? && !help_url.match?(%r{^https?://})
+          end
+
+          { errors: errors, warnings: warnings }
         end
 
         def default_extension_id(name)
