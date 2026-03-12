@@ -9,7 +9,7 @@ require "active_support/core_ext/enumerable"
 
 module Kiket
   module DefinitionTesting
-    Result = Struct.new(:category, :file, :message, :severity, :metadata, keyword_init: true) do
+    Result = Struct.new(:category, :file, :message, :severity, :metadata) do
       def to_h
         {
           category: category,
@@ -93,6 +93,7 @@ module Kiket
       PROJECT_KEY_PATTERN = /\A[A-Z][A-Z0-9]*\z/
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -187,6 +188,7 @@ module Kiket
       SUPPORTED_WORKFLOW_KEYS = %w[id name model_version description initial_state].freeze
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -291,6 +293,7 @@ module Kiket
       ICON_PATTERN = /\A[a-z][a-z0-9-]*\z/
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -390,6 +393,7 @@ module Kiket
       SUPPORTED_DASHBOARD_KEYS = %w[id name description widgets alerts].freeze
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -446,6 +450,7 @@ module Kiket
       SUPPORTED_MAPPING_KEYS = %w[email_address sender_policy issue_defaults auto_reply auto_reply_template].freeze
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -516,6 +521,7 @@ module Kiket
       SUPPORTED_AGENT_KEYS = %w[id name version description prompts capabilities inputs outputs tools].freeze
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -615,6 +621,7 @@ module Kiket
       SUPPORTED_OPTION_KEYS = %w[value label description values].freeze
 
       def initialize(root)
+        super()
         @root = root
       end
 
@@ -675,7 +682,7 @@ module Kiket
       def validate_settings(results, settings, file)
         return unless settings.is_a?(Hash)
 
-        settings.each do |key, _value|
+        settings.each_key do |key|
           next if SUPPORTED_SETTINGS_KEYS.include?(key.to_s)
 
           results << warning_result("intakes", file, "Unsupported settings key '#{key}'")
@@ -732,6 +739,7 @@ module Kiket
 
     class DbtLinter < BaseLinter
       def initialize(root, project_path:, run_cli: true)
+        super()
         @root = root
         @project_path = project_path && File.expand_path(project_path)
         @run_cli = run_cli
