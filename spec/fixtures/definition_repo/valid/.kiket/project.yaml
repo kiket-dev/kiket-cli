@@ -1,6 +1,6 @@
 model_version: "1.0"
 project:
-  id: sample
+  key: SAMPLE
   name: Sample Project
   version: 1.0.0
   description: Sample project for testing.

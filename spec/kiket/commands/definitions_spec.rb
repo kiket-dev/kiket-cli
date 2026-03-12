@@ -18,6 +18,8 @@ RSpec.describe Kiket::Commands::Definitions do
   end
 
   describe "lint" do
+    let(:config) { test_config(output_format: "human") }
+
     it "passes for valid definition repo" do
       Dir.mktmpdir do |dir|
         FileUtils.cp_r(File.join(fixtures_path, "definition_repo", "valid", "."), dir)
