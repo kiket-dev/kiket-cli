@@ -35,14 +35,20 @@ module Kiket
               next
             end
 
+            # Skip non-workflow YAML files
+            next unless workflow["model_version"] || workflow["workflow"] || workflow["states"]
+
             # Check required fields
             errors << "#{file}: Missing model_version" unless workflow["model_version"]
             errors << "#{file}: Missing workflow name" unless workflow.dig("workflow", "name")
 
-            # Check states
-            if workflow.dig("workflow", "states")
-              states = workflow.dig("workflow", "states")
+            # Check states (top-level or under workflow key)
+            states = workflow["states"] || workflow.dig("workflow", "states")
+            if states
               errors << "#{file}: States must be a hash" unless states.is_a?(Hash)
+
+              has_initial = false
+              has_final = false
 
               states&.each do |state_name, state_def|
                 unless state_def.is_a?(Hash)
@@ -50,18 +56,63 @@ module Kiket
                   next
                 end
 
-                # Validate transitions
-                next unless state_def["transitions"]
+                has_initial = true if state_def["type"] == "initial" || state_def["type"] == "trigger"
+                has_final = true if state_def["type"] == "final"
 
-                state_def["transitions"].each do |transition|
-                  errors << "#{file}: Transition missing 'to' field in state '#{state_name}'" unless transition["to"]
+                # Validate SLA config
+                if state_def["sla"].is_a?(Hash)
+                  sla = state_def["sla"]
+                  validate_sla_duration(file, state_name, "warning", sla["warning"], errors)
+                  validate_sla_duration(file, state_name, "breach", sla["breach"], errors)
+
+                  if sla["business_hours"] && ![true, false].include?(sla["business_hours"])
+                    errors << "#{file}: State '#{state_name}' SLA business_hours must be true/false"
+                  end
+
+                  # Validate on_warning / on_breach hooks
+                  validate_lifecycle_hooks(file, state_name, "on_warning", sla["on_warning"], errors, warnings)
+                  validate_lifecycle_hooks(file, state_name, "on_breach", sla["on_breach"], errors, warnings)
+                end
+
+                # Validate lifecycle hooks
+                validate_lifecycle_hooks(file, state_name, "on_enter", state_def["on_enter"], errors, warnings)
+                validate_lifecycle_hooks(file, state_name, "on_exit", state_def["on_exit"], errors, warnings)
+
+                # Validate approval config
+                if state_def["approval"].is_a?(Hash)
+                  approval = state_def["approval"]
+                  errors << "#{file}: State '#{state_name}' approval.required must be a number" unless approval["required"].is_a?(Integer)
+                  errors << "#{file}: State '#{state_name}' approval.approvers must be an array" unless approval["approvers"].is_a?(Array)
+                end
+              end
+
+              warnings << "#{file}: No initial or trigger state defined" unless has_initial || (states&.size || 0) == 0
+              warnings << "#{file}: No final state defined" unless has_final || (states&.size || 0) == 0
+            end
+
+            # Check transitions
+            transitions = workflow["transitions"] || workflow.dig("workflow", "transitions")
+            if transitions.is_a?(Array)
+              transitions.each_with_index do |t, i|
+                errors << "#{file}: Transition ##{i + 1} missing 'from'" unless t["from"]
+                errors << "#{file}: Transition ##{i + 1} missing 'to'" unless t["to"]
+
+                # Validate transition conditions
+                if t["conditions"].is_a?(Array)
+                  t["conditions"].each_with_index do |cond, ci|
+                    errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'field'" unless cond["field"]
+                    errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'operator'" unless cond["operator"]
+                    valid_ops = %w[equals not_equals contains gt lt is_empty is_not_empty]
+                    if cond["operator"] && !valid_ops.include?(cond["operator"])
+                      warnings << "#{file}: Transition ##{i + 1} condition ##{ci + 1} unknown operator '#{cond['operator']}'"
+                    end
+                  end
                 end
               end
             end
 
             # Check for common issues
             warnings << "#{file}: No description provided" unless workflow.dig("workflow", "description")
-            warnings << "#{file}: No initial state defined" unless workflow.dig("workflow", "initial_state")
 
             # Auto-fix formatting if requested
             if options[:fix]
@@ -97,6 +148,43 @@ module Kiket
         success "Workflow validation complete"
       rescue StandardError => e
         handle_error(e)
+      end
+
+      no_commands do
+        def validate_sla_duration(file, state_name, field, value, errors)
+          return unless value.present?
+
+          unless value.to_s.match?(/\A\d+(m|h|d)\z/)
+            errors << "#{file}: State '#{state_name}' SLA #{field} '#{value}' invalid — use format like 24h, 7d, 30m"
+          end
+        end
+
+        def validate_lifecycle_hooks(file, state_name, hook_name, hooks, errors, warnings)
+          return unless hooks.is_a?(Array)
+
+          valid_actions = %w[notify ai_analyze webhook blockchain_anchor transition assign spawn_issue spawn_form]
+
+          hooks.each_with_index do |hook, i|
+            unless hook.is_a?(Hash)
+              errors << "#{file}: State '#{state_name}' #{hook_name}[#{i}] must be a hash"
+              next
+            end
+
+            unless hook["action"].present?
+              errors << "#{file}: State '#{state_name}' #{hook_name}[#{i}] missing 'action'"
+              next
+            end
+
+            unless valid_actions.include?(hook["action"])
+              warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] unknown action '#{hook['action']}'"
+            end
+
+            # Validate spawn_issue has template
+            if hook["action"] == "spawn_issue" && !hook.dig("metadata", "template").present?
+              warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] spawn_issue missing metadata.template"
+            end
+          end
+        end
       end
 
       desc "test [PATH]", "Test workflow definitions"
