@@ -14,16 +14,24 @@ RSpec.describe Kiket::Commands::Workflows do
 
   after { Kiket.reset! }
 
+  def capture_stdout
+    original = $stdout
+    fake = StringIO.new
+    $stdout = fake
+    yield
+    fake.string
+  ensure
+    $stdout = original
+  end
+
   describe "lint" do
     def lint_yaml(yaml_content)
       Dir.mktmpdir do |dir|
         File.write(File.join(dir, "workflow.yaml"), yaml_content)
         output = capture_stdout do
-          begin
-            described_class.start(["lint", dir])
-          rescue SystemExit
-            # lint exits 1 on errors
-          end
+          described_class.start(["lint", dir])
+        rescue SystemExit
+          # lint exits 1 on errors
         end
         output
       end

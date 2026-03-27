@@ -56,7 +56,7 @@ module Kiket
                   next
                 end
 
-                has_initial = true if state_def["type"] == "initial" || state_def["type"] == "trigger"
+                has_initial = true if %w[initial trigger].include?(state_def["type"])
                 has_final = true if state_def["type"] == "final"
 
                 # Validate SLA config
@@ -65,7 +65,7 @@ module Kiket
                   validate_sla_duration(file, state_name, "warning", sla["warning"], errors)
                   validate_sla_duration(file, state_name, "breach", sla["breach"], errors)
 
-                  if sla["business_hours"] && ![true, false].include?(sla["business_hours"])
+                  if sla["business_hours"] && ![true, false].include?(sla["business_hours"]) # rubocop:disable Rails/NegateInclude
                     errors << "#{file}: State '#{state_name}' SLA business_hours must be true/false"
                   end
 
@@ -79,15 +79,15 @@ module Kiket
                 validate_lifecycle_hooks(file, state_name, "on_exit", state_def["on_exit"], errors, warnings)
 
                 # Validate approval config
-                if state_def["approval"].is_a?(Hash)
-                  approval = state_def["approval"]
-                  errors << "#{file}: State '#{state_name}' approval.required must be a number" unless approval["required"].is_a?(Integer)
-                  errors << "#{file}: State '#{state_name}' approval.approvers must be an array" unless approval["approvers"].is_a?(Array)
-                end
+                next unless state_def["approval"].is_a?(Hash)
+
+                approval = state_def["approval"]
+                errors << "#{file}: State '#{state_name}' approval.required must be a number" unless approval["required"].is_a?(Integer)
+                errors << "#{file}: State '#{state_name}' approval.approvers must be an array" unless approval["approvers"].is_a?(Array)
               end
 
-              warnings << "#{file}: No initial or trigger state defined" unless has_initial || (states&.size || 0) == 0
-              warnings << "#{file}: No final state defined" unless has_final || (states&.size || 0) == 0
+              warnings << "#{file}: No initial or trigger state defined" unless has_initial || (states&.size || 0).zero?
+              warnings << "#{file}: No final state defined" unless has_final || (states&.size || 0).zero?
             end
 
             # Check transitions
@@ -98,14 +98,14 @@ module Kiket
                 errors << "#{file}: Transition ##{i + 1} missing 'to'" unless t["to"]
 
                 # Validate transition conditions
-                if t["conditions"].is_a?(Array)
-                  t["conditions"].each_with_index do |cond, ci|
-                    errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'field'" unless cond["field"]
-                    errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'operator'" unless cond["operator"]
-                    valid_ops = %w[equals not_equals contains gt lt is_empty is_not_empty]
-                    if cond["operator"] && !valid_ops.include?(cond["operator"])
-                      warnings << "#{file}: Transition ##{i + 1} condition ##{ci + 1} unknown operator '#{cond['operator']}'"
-                    end
+                next unless t["conditions"].is_a?(Array)
+
+                t["conditions"].each_with_index do |cond, ci|
+                  errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'field'" unless cond["field"]
+                  errors << "#{file}: Transition ##{i + 1} condition ##{ci + 1} missing 'operator'" unless cond["operator"]
+                  valid_ops = %w[equals not_equals contains gt lt is_empty is_not_empty]
+                  if cond["operator"] && !valid_ops.include?(cond["operator"]) # rubocop:disable Rails/NegateInclude
+                    warnings << "#{file}: Transition ##{i + 1} condition ##{ci + 1} unknown operator '#{cond["operator"]}'"
                   end
                 end
               end
@@ -152,11 +152,11 @@ module Kiket
 
       no_commands do
         def validate_sla_duration(file, state_name, field, value, errors)
-          return unless value.present?
+          return if value.nil? || value.to_s.empty?
 
-          unless value.to_s.match?(/\A\d+(m|h|d)\z/)
-            errors << "#{file}: State '#{state_name}' SLA #{field} '#{value}' invalid — use format like 24h, 7d, 30m"
-          end
+          return if value.to_s.match?(/\A\d+(m|h|d)\z/)
+
+          errors << "#{file}: State '#{state_name}' SLA #{field} '#{value}' invalid — use format like 24h, 7d, 30m"
         end
 
         def validate_lifecycle_hooks(file, state_name, hook_name, hooks, errors, warnings)
@@ -170,17 +170,15 @@ module Kiket
               next
             end
 
-            unless hook["action"].present?
+            unless hook["action"] && !hook["action"].empty?
               errors << "#{file}: State '#{state_name}' #{hook_name}[#{i}] missing 'action'"
               next
             end
 
-            unless valid_actions.include?(hook["action"])
-              warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] unknown action '#{hook['action']}'"
-            end
+            warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] unknown action '#{hook["action"]}'" unless valid_actions.include?(hook["action"])
 
             # Validate spawn_issue has template
-            if hook["action"] == "spawn_issue" && !hook.dig("metadata", "template").present?
+            if hook["action"] == "spawn_issue" && (hook.dig("metadata", "template").nil? || hook.dig("metadata", "template").to_s.empty?)
               warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] spawn_issue missing metadata.template"
             end
           end
