@@ -175,7 +175,10 @@ module Kiket
               next
             end
 
-            warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] unknown action '#{hook["action"]}'" unless valid_actions.include?(hook["action"])
+            action_name = hook["action"]
+            unless valid_actions.include?(action_name) || action_name.start_with?("ext:")
+              warnings << "#{file}: State '#{state_name}' #{hook_name}[#{i}] unknown action '#{action_name}' (may be an extension action)"
+            end
 
             # Validate spawn_issue has template
             if hook["action"] == "spawn_issue" && (hook.dig("metadata", "template").nil? || hook.dig("metadata", "template").to_s.empty?)
