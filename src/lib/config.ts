@@ -47,9 +47,12 @@ export async function saveConfig(config: CliConfig, path = getConfigPath()): Pro
 
 export async function clearAuth(path = getConfigPath()): Promise<void> {
   const config = await loadConfig(path);
-  await saveConfig({
-    ...config,
-    auth: undefined,
-    user: undefined,
-  }, path);
+  await saveConfig(
+    {
+      ...config,
+      auth: undefined,
+      user: undefined,
+    },
+    path,
+  );
 }

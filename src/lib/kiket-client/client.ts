@@ -127,7 +127,9 @@ export class KiketClient {
   }
 
   async listProjects(orgId: string) {
-    return this.request(`/api/v1/organizations/${orgId}/projects`, { schema: projectListSchema }).then((body) => body.data);
+    return this.request(`/api/v1/organizations/${orgId}/projects`, { schema: projectListSchema }).then(
+      (body) => body.data,
+    );
   }
 
   async getProject(orgId: string, projectId: string) {
@@ -165,7 +167,9 @@ export class KiketClient {
   }
 
   async getIssue(issueId: string) {
-    return this.request(`/api/v1/issues/${issueId}`, { schema: issueSchema.extend({ transitions: z.array(z.unknown()).optional() }) });
+    return this.request(`/api/v1/issues/${issueId}`, {
+      schema: issueSchema.extend({ transitions: z.array(z.unknown()).optional() }),
+    });
   }
 
   async createIssue(input: {
@@ -189,16 +193,19 @@ export class KiketClient {
     });
   }
 
-  async updateIssue(issueId: string, input: {
-    title?: string;
-    description?: string;
-    issueType?: string;
-    priority?: string;
-    assigneeId?: string;
-    dueDate?: string;
-    labels?: string[];
-    customFields?: Record<string, unknown>;
-  }) {
+  async updateIssue(
+    issueId: string,
+    input: {
+      title?: string;
+      description?: string;
+      issueType?: string;
+      priority?: string;
+      assigneeId?: string;
+      dueDate?: string;
+      labels?: string[];
+      customFields?: Record<string, unknown>;
+    },
+  ) {
     return this.request(`/api/v1/issues/${issueId}`, {
       method: 'PATCH',
       body: input,
@@ -250,12 +257,15 @@ export class KiketClient {
     });
   }
 
-  async updateMilestone(milestoneId: string, input: {
-    title?: string;
-    description?: string | null;
-    dueDate?: string | null;
-    status?: 'open' | 'closed';
-  }) {
+  async updateMilestone(
+    milestoneId: string,
+    input: {
+      title?: string;
+      description?: string | null;
+      dueDate?: string | null;
+      status?: 'open' | 'closed';
+    },
+  ) {
     return this.request(`/api/v1/milestones/${milestoneId}`, {
       method: 'PATCH',
       body: input,
@@ -376,17 +386,14 @@ export class KiketClient {
   private async buildError(response: Response): Promise<KiketClientError> {
     const payload = await response.json().catch(() => null);
     const message =
-      (payload &&
-        typeof payload === 'object' &&
-        payload !== null &&
-        ('error' in payload || 'message' in payload)
+      payload && typeof payload === 'object' && payload !== null && ('error' in payload || 'message' in payload)
         ? (payload as { error?: { message?: string } | string; message?: string }).error &&
-            typeof (payload as { error?: { message?: string } | string }).error === 'object'
+          typeof (payload as { error?: { message?: string } | string }).error === 'object'
           ? ((payload as { error: { message?: string } }).error.message ?? `Request failed with ${response.status}`)
           : ((payload as { error?: string; message?: string }).error ??
-              (payload as { message?: string }).message ??
-              `Request failed with ${response.status}`)
-        : `Request failed with ${response.status}`);
+            (payload as { message?: string }).message ??
+            `Request failed with ${response.status}`)
+        : `Request failed with ${response.status}`;
 
     return new KiketClientError(message, response.status, payload);
   }

@@ -1,6 +1,4 @@
-export type AuthMode =
-  | { kind: 'jwt'; token: string }
-  | { kind: 'apiKey'; apiKey: string };
+export type AuthMode = { kind: 'jwt'; token: string } | { kind: 'apiKey'; apiKey: string };
 
 export interface KiketClientOptions {
   baseUrl: string;

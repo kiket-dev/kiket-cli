@@ -1,11 +1,7 @@
-import { printJson, printKeyValue, printSection } from '../lib/output.js';
 import { getConfiguredClient } from '../lib/client.js';
+import { printJson, printKeyValue, printSection } from '../lib/output.js';
 
-export async function listIssues(options: {
-  projectId?: string;
-  state?: string;
-  assigneeId?: string;
-}) {
+export async function listIssues(options: { projectId?: string; state?: string; assigneeId?: string }) {
   const { client } = await getConfiguredClient();
   const issues = await client.listIssues(options);
   printJson(issues);

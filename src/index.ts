@@ -3,13 +3,7 @@ import { cac } from 'cac';
 import { authLogin, authLogout, authStatus } from './commands/auth.js';
 import { doctor } from './commands/doctor.js';
 import { scaffold as scaffoldExtension } from './commands/extensions.js';
-import {
-  createIssue,
-  listIssues,
-  listIssueTypes,
-  showIssue,
-  transitionIssue,
-} from './commands/issues.js';
+import { createIssue, listIssues, listIssueTypes, showIssue, transitionIssue } from './commands/issues.js';
 import { listMilestones, showMilestone } from './commands/milestones.js';
 import { listProjects, showProject } from './commands/projects.js';
 import { listWorkflows, validateWorkflow } from './commands/workflows.js';

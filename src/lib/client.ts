@@ -1,6 +1,6 @@
+import { loadConfig } from './config.js';
 import { KiketClient } from './kiket-client/index.js';
 import { fail } from './output.js';
-import { loadConfig } from './config.js';
 
 export async function getConfiguredClient() {
   const config = await loadConfig();

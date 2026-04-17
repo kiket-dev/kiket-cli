@@ -1,5 +1,5 @@
-import { printJson } from '../lib/output.js';
 import { getConfiguredClient } from '../lib/client.js';
+import { printJson } from '../lib/output.js';
 
 export async function listMilestones(projectId: string) {
   const { client } = await getConfiguredClient();

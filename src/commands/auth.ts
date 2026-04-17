@@ -1,6 +1,6 @@
 import { isCancel, password, select, text } from '@clack/prompts';
-import { KiketClient } from '../lib/kiket-client/index.js';
 import { clearAuth, loadConfig, saveConfig } from '../lib/config.js';
+import { KiketClient } from '../lib/kiket-client/index.js';
 import { printKeyValue } from '../lib/output.js';
 
 export async function authLogin(options: { baseUrl?: string; organizationId?: string }) {

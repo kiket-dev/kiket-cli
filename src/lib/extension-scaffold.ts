@@ -137,7 +137,7 @@ jobs:
 `,
   },
   ruby: {
-    'Gemfile': `source 'https://rubygems.org'\ngem 'rspec'\n`,
+    Gemfile: `source 'https://rubygems.org'\ngem 'rspec'\n`,
     'lib/handler.rb': `module KiketExtension
   def self.handle_event(event)
     { status: 'ok', message: "Handled #{event['eventType']}" }

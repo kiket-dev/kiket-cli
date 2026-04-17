@@ -1,5 +1,5 @@
-import { printJson, printKeyValue, printSection } from '../lib/output.js';
 import { getConfiguredClient } from '../lib/client.js';
+import { printJson, printKeyValue, printSection } from '../lib/output.js';
 
 function requireOrganizationId(orgId: string | undefined): string {
   if (!orgId) throw new Error('Organization ID is required. Set it in config first.');
