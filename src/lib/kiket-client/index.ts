@@ -1,2 +1,4 @@
-export * from '@kiket/api-client';
-export { KiketClient, KiketClientError } from '@kiket/api-client';
+export * from './client.js';
+export * from './errors.js';
+export * from './schemas.js';
+export * from './types.js';
