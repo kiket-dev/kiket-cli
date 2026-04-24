@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { cac } from 'cac';
 import { authLogin, authLogout, authStatus } from './commands/auth.js';
+import { listDefinitions, showDefinition } from './commands/definitions.js';
 import { doctor } from './commands/doctor.js';
 import { scaffold as scaffoldExtension } from './commands/extensions.js';
 import { createIssue, listIssues, listIssueTypes, showIssue, transitionIssue } from './commands/issues.js';
@@ -15,6 +16,9 @@ cli.command('auth logout', 'Clear local auth').action(authLogout);
 cli.command('auth status', 'Show local auth status').action(authStatus);
 
 cli.command('doctor', 'Check API health and current auth').action(doctor);
+
+cli.command('definitions list', 'List available template definitions').action(listDefinitions);
+cli.command('definitions show <key>', 'Show one template definition').action(showDefinition);
 
 cli.command('projects list', 'List projects').action(listProjects);
 cli.command('projects show <projectId>', 'Show a project').action(showProject);

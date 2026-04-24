@@ -7,7 +7,7 @@ Modern TypeScript CLI for Kiket. This replaces the legacy Ruby CLI with a standa
 The new CLI is intentionally narrow and honest:
 
 - it only exposes routes that actually exist in the API
-- it keeps a local typed contract layer in-repo so the standalone package does not depend on monorepo-only workspace links
+- it uses a shared typed client package (`@kiket/api-client`) for API contract consistency
 - it favors pure, testable helpers over hidden command-side state
 - it treats extension scaffolding as a first-class product surface, not an afterthought
 
@@ -26,6 +26,7 @@ The new CLI is intentionally narrow and honest:
 - issues (list/show/create/transition + issue types)
 - milestones (list/show)
 - workflows (list/validate)
+- definitions (list/show)
 - extension scaffolding for `node`, `python`, `ruby`, `java`, `dotnet`, `go`
 
 ## Development
