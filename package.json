@@ -1,37 +1,26 @@
 {
   "name": "@kiket/cli",
   "version": "0.1.0",
-  "description": "Modern TypeScript CLI for Kiket",
+  "private": true,
+  "description": "CI-friendly Kiket CLI for config, scans, evidence, reports, and audit proof verification",
   "type": "module",
-  "packageManager": "pnpm@10.8.0",
-  "engines": {
-    "node": ">=24.0.0"
-  },
   "bin": {
     "kiket": "./dist/index.js"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "check": "tsc --noEmit",
-    "lint": "biome check src tests vitest.config.ts biome.json",
-    "clean": "rm -rf dist coverage"
+    "lint": "biome check --diagnostic-level=error src/client.ts src/commands.ts src/index.ts src/local-config.ts tests/commands.test.ts",
+    "test": "vitest run tests/commands.test.ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clack/prompts": "^0.11.0",
-    "cac": "^6.7.14",
-    "yaml": "^2.8.1",
-    "zod": "^3.25.76"
+    "@kiket/api-client": "workspace:*",
+    "@kiket/engine": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/node": "^24.5.2",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.0"
   }
