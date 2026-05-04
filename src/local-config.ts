@@ -90,6 +90,10 @@ export function validateConfigText(yaml: string) {
   }
 }
 
+/**
+ * Rewrite workflow YAML under `.kiket/workflows/` toward `model_version` 2.0.
+ * Best-effort only — unsupported legacy shapes may stop working as the schema tightens (see docs/API-MIGRATION.md).
+ */
 export async function migrateConfig(root: string, targetPath: string | undefined, write: boolean) {
   const files = targetPath
     ? [path.resolve(root, targetPath)]
