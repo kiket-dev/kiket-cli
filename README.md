@@ -1,24 +1,12 @@
 # `@kiket/cli`
 
-Modern TypeScript CLI for Kiket. It targets the operational compliance platform API and local `.kiket/` configuration files.
+Modern TypeScript CLI for Kiket — workspace/process/case/evidence/finding/report/anchor platform loop and local `.kiket/` validation.
 
-## Strategy
+## Role in the monorepo
 
-The new CLI is intentionally narrow and honest:
+Non-interactive, machine-readable client for the platform API. Uses `@kiket/api-client` for contract alignment. Submodule checkout: see [docs/architecture/submodules.md](../docs/architecture/submodules.md).
 
-- it exposes only the workspace/process/case/evidence/finding/report/anchor platform loop
-- it uses the shared `@kiket/api-client` contract layer
-- it is non-interactive by default and supports machine-readable output
-- it validates and migrates file-backed `.kiket/` configuration locally when possible
-
-## Future Vision
-
-- generated contracts from OpenAPI for tighter drift prevention
-- richer interactive auth and organization selection flows
-- repo-aware config helpers for process modeling
-- full parity for supported platform capabilities as those APIs land
-
-## Current Scope
+## Current scope
 
 - `kiket init`
 - `kiket validate`
@@ -33,12 +21,18 @@ The new CLI is intentionally narrow and honest:
 - `kiket anchor verify`
 - `kiket extension test`
 
-## Development
+## Commands
 
 ```bash
-pnpm install
-pnpm test
-pnpm check
-pnpm lint
-pnpm build
+pnpm --filter @kiket/cli test
+pnpm --filter @kiket/cli check
+pnpm --filter @kiket/cli lint
+pnpm --filter @kiket/cli build
 ```
+
+## Related docs
+
+- [MCP server](../mcp/README.md) — agent-facing tools over the same API
+- [API client](../packages/api-client/README.md)
+- [CLI/MCP/SDK skill](../.cursor/skills/kiket-cli-mcp-sdk/SKILL.md)
+- [Public CLI docs](https://docs.kiket.dev/docs/cli/overview) (docs-site)
