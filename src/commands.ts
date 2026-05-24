@@ -4,6 +4,12 @@ import { parseArgs } from 'node:util';
 import type { KiketClient } from '@kiket/api-client';
 import { type CliEnv, createClient, requireApiAuth } from './client.js';
 import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
+import {
+  initExtension,
+  readExtensionManifest,
+  validateExtensionManifestYaml,
+  type ExtensionTemplate,
+} from './extension-scaffold.js';
 
 export interface CliDeps {
   cwd?: string;
@@ -35,6 +41,8 @@ Usage:
   kiket report verify --id <report-id>
   kiket anchor create --subject-type <type> --subject-id <id> --subject-hash <hash> [--workspace-id <id>] [--chain <chain>] [--network <network>] [--request-submission]
   kiket anchor verify --id <anchor-id>
+  kiket extension init [--root <path>] [--force] [--template webhook|github|slack]
+  kiket extension validate [--file extension.yaml]
   kiket extension test --file <json>
 
 Global options:
@@ -106,9 +114,7 @@ export async function runCli(argv: string[], deps: CliDeps = {}): Promise<CliRes
         requireApiAuth(clientOptions);
         return output(await anchorCommand(commandArgs[0], commandArgs.slice(1), client), format);
       case 'extension':
-        if (commandArgs[0] !== 'test') throw new Error('Use `kiket extension test`.');
-        requireApiAuth(clientOptions);
-        return output(await extensionTestCommand(commandArgs.slice(1), cwd, client, deps.readStdin), format);
+        return output(await extensionCommand(commandArgs, cwd, client, clientOptions, deps.readStdin), format);
       default:
         throw new Error(`Unknown command "${command}".`);
     }
@@ -226,6 +232,31 @@ async function anchorCommand(subcommand: string | undefined, args: string[], cli
   throw new Error('Use `kiket anchor create` or `kiket anchor verify`.');
 }
 
+async function extensionCommand(
+  args: string[],
+  cwd: string,
+  client: KiketClient,
+  clientOptions: Parameters<typeof requireApiAuth>[0],
+  readStdin: CliDeps['readStdin'],
+) {
+  const subcommand = args[0];
+  if (subcommand === 'init') {
+    const options = readOptions(args.slice(1));
+    const template = parseExtensionTemplate(options.template);
+    return initExtension(resolveRoot(cwd, args.slice(1)), readForce(args.slice(1)), template);
+  }
+  if (subcommand === 'validate') {
+    const options = readOptions(args.slice(1));
+    const yaml = await readExtensionManifest(cwd, typeof options.file === 'string' ? options.file : undefined);
+    return validateExtensionManifestYaml(yaml);
+  }
+  if (subcommand === 'test') {
+    requireApiAuth(clientOptions);
+    return extensionTestCommand(args.slice(1), cwd, client, readStdin);
+  }
+  throw new Error('Use `kiket extension init`, `kiket extension validate`, or `kiket extension test`.');
+}
+
 async function extensionTestCommand(args: string[], cwd: string, client: KiketClient, readStdin: CliDeps['readStdin']) {
   const options = readOptions(args);
   const input = JSON.parse(await readJsonArgument(cwd, required(options, 'file'), readStdin)) as Parameters<
@@ -288,6 +319,12 @@ function resolveRoot(cwd: string, args: string[]) {
 
 function readForce(args: string[]) {
   return readOptions(args).force === true;
+}
+
+function parseExtensionTemplate(value: unknown): ExtensionTemplate {
+  if (value === undefined) return 'webhook';
+  if (value === 'webhook' || value === 'github' || value === 'slack') return value;
+  throw new Error('Only --template webhook, github, or slack is supported.');
 }
 
 function required(options: Record<string, unknown>, key: string): string {
