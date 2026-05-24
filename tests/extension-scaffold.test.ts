@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  KIKET_EXTENSION_MANIFEST_FILENAME,
-  validateExtensionManifestYaml,
-} from '../src/extension-scaffold.js';
+import { KIKET_EXTENSION_MANIFEST_FILENAME, validateExtensionManifestYaml } from '../src/extension-scaffold.js';
 
 describe('extension-scaffold', () => {
   it('uses a Kiket-branded manifest filename', () => {
