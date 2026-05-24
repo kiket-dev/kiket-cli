@@ -3,13 +3,13 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import type { KiketClient } from '@kiket/api-client';
 import { type CliEnv, createClient, requireApiAuth } from './client.js';
-import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
 import {
+  type ExtensionTemplate,
   initExtension,
   readExtensionManifest,
   validateExtensionManifestYaml,
-  type ExtensionTemplate,
 } from './extension-scaffold.js';
+import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
 
 export interface CliDeps {
   cwd?: string;
