@@ -2,6 +2,9 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
+/** Canonical platform extension manifest filename at the adapter repo root. */
+export const KIKET_EXTENSION_MANIFEST_FILENAME = 'kiket-extension.yaml';
+
 export type ExtensionTemplate = 'webhook' | 'github' | 'slack';
 
 export interface ExtensionInitResult {
@@ -83,12 +86,12 @@ export async function initExtension(
   await mkdir(srcDir, { recursive: true });
   created.push('src');
 
-  const manifestPath = path.join(root, 'extension.yaml');
+  const manifestPath = path.join(root, KIKET_EXTENSION_MANIFEST_FILENAME);
   if ((await pathExists(manifestPath)) && !force) {
-    skipped.push('extension.yaml');
+    skipped.push(KIKET_EXTENSION_MANIFEST_FILENAME);
   } else {
     await writeFile(manifestPath, `${stringifyYaml(TEMPLATE_MANIFESTS[template])}`, 'utf8');
-    created.push('extension.yaml');
+    created.push(KIKET_EXTENSION_MANIFEST_FILENAME);
   }
 
   const adapterPath = path.join(srcDir, 'adapter.ts');
@@ -158,7 +161,10 @@ export function validateExtensionManifestYaml(yamlText: string): ExtensionValida
       ? { valid: true, errors: [], manifest: parsed }
       : { valid: false, errors, manifest: parsed };
   } catch (error) {
-    return { valid: false, errors: [error instanceof Error ? error.message : 'Invalid extension.yaml'] };
+    return {
+      valid: false,
+      errors: [error instanceof Error ? error.message : `Invalid ${KIKET_EXTENSION_MANIFEST_FILENAME}`],
+    };
   }
 }
 
@@ -172,6 +178,6 @@ async function pathExists(filePath: string): Promise<boolean> {
 }
 
 export async function readExtensionManifest(root: string, file?: string): Promise<string> {
-  const manifestPath = file ? path.resolve(root, file) : path.join(root, 'extension.yaml');
+  const manifestPath = file ? path.resolve(root, file) : path.join(root, KIKET_EXTENSION_MANIFEST_FILENAME);
   return readFile(manifestPath, 'utf8');
 }

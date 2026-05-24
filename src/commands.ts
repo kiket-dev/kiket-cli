@@ -42,7 +42,7 @@ Usage:
   kiket anchor create --subject-type <type> --subject-id <id> --subject-hash <hash> [--workspace-id <id>] [--chain <chain>] [--network <network>] [--request-submission]
   kiket anchor verify --id <anchor-id>
   kiket extension init [--root <path>] [--force] [--template webhook|github|slack]
-  kiket extension validate [--file extension.yaml]
+  kiket extension validate [--file kiket-extension.yaml]
   kiket extension test --file <json>
 
 Global options:

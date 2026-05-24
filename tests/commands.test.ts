@@ -32,12 +32,14 @@ describe('kiket CLI', () => {
 
     expect(result.exitCode).toBe(0);
     const body = JSON.parse(result.stdout) as { created: string[] };
-    expect(body.created).toContain('extension.yaml');
+    expect(body.created).toContain('kiket-extension.yaml');
     expect(body.created).toContain('src/adapter.ts');
-    await expect(readFile(path.join(cwd, 'extension.yaml'), 'utf8')).resolves.toContain('apiVersion: kiket.dev/v1');
+    await expect(readFile(path.join(cwd, 'kiket-extension.yaml'), 'utf8')).resolves.toContain(
+      'apiVersion: kiket.dev/v1',
+    );
   });
 
-  it('validates extension.yaml locally', async () => {
+  it('validates kiket-extension.yaml locally', async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'kiket-cli-ext-'));
     await runCli(['extension', 'init'], { cwd });
     const result = await runCli(['extension', 'validate'], { cwd });
