@@ -297,6 +297,7 @@ function readOptions(args: string[]) {
       chain: { type: 'string' },
       network: { type: 'string' },
       'request-submission': { type: 'boolean' },
+      template: { type: 'string' },
     },
   }).values;
 }
