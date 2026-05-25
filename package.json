@@ -17,12 +17,12 @@
   "dependencies": {
     "@kiket/api-client": "workspace:*",
     "@kiket/engine": "workspace:*",
-    "yaml": "^2.8.3"
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.0",
-    "@types/node": "^24.5.2",
+    "@biomejs/biome": "^2.4.15",
+    "@types/node": "^24.12.4",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.4"
   }
 }
