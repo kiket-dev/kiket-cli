@@ -9,6 +9,9 @@ import {
   readExtensionManifest,
   validateExtensionManifestYaml,
 } from './extension-scaffold.js';
+import { buildExtensionInstallBody, parseExtensionInstallTransport } from './extension-install.js';
+import { buildExtensionPublishBody, parseExtensionPublishVisibility, readManifestForPublish } from './extension-publish.js';
+import { runExtensionRunner } from './extension-run.js';
 import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
 
 export interface CliDeps {
@@ -44,6 +47,9 @@ Usage:
   kiket extension init [--root <path>] [--force] [--template webhook|github|slack]
   kiket extension validate [--file kiket-extension.yaml]
   kiket extension test --file <json>
+  kiket extension install --key <key> --display-name <name> --version <ver> [--transport catalog_hosted|push|pull] [--endpoint-url <url>] [--workspace-id <id>]
+  kiket extension run [--transport push|pull] [--port <n>]
+  kiket extension publish [--visibility public|org] [--file kiket-extension.yaml] [--git-url <url>] [--publisher-contact <email>]
 
 Global options:
   --api-url <url>              Defaults to KIKET_API_URL or http://localhost:3000
@@ -254,7 +260,58 @@ async function extensionCommand(
     requireApiAuth(clientOptions);
     return extensionTestCommand(args.slice(1), cwd, client, readStdin);
   }
-  throw new Error('Use `kiket extension init`, `kiket extension validate`, or `kiket extension test`.');
+  if (subcommand === 'install') {
+    requireApiAuth(clientOptions);
+    return extensionInstallCommand(args.slice(1), client);
+  }
+  if (subcommand === 'run') {
+    return extensionRunCommand(args.slice(1), deps.env ?? process.env);
+  }
+  if (subcommand === 'publish') {
+    requireApiAuth(clientOptions);
+    return extensionPublishCommand(args.slice(1), cwd, client);
+  }
+  throw new Error(
+    'Use `kiket extension init`, `kiket extension validate`, `kiket extension test`, `kiket extension install`, `kiket extension run`, or `kiket extension publish`.',
+  );
+}
+
+async function extensionPublishCommand(args: string[], cwd: string, client: KiketClient) {
+  const options = readOptions(args);
+  const manifestYaml = await readManifestForPublish(cwd, typeof options.file === 'string' ? options.file : undefined);
+  const body = buildExtensionPublishBody({
+    visibility: parseExtensionPublishVisibility(options.visibility ?? 'public'),
+    manifestYaml,
+    defaultGitUrl: stringOption(options, 'git-url'),
+    defaultRef: stringOption(options, 'ref'),
+    publisherContact: stringOption(options, 'publisher-contact'),
+    docsUrl: stringOption(options, 'docs-url'),
+  });
+  return client.publishExtensionListing(body);
+}
+
+async function extensionInstallCommand(args: string[], client: KiketClient) {
+  const options = readOptions(args);
+  const transport = parseExtensionInstallTransport(options.transport ?? 'catalog_hosted');
+  const body = buildExtensionInstallBody({
+    extensionKey: required(options, 'key'),
+    displayName: required(options, 'display-name'),
+    version: required(options, 'version'),
+    workspaceId: stringOption(options, 'workspace-id'),
+    transport,
+    endpointUrl: stringOption(options, 'endpoint-url'),
+    pollIntervalSeconds: numberOption(options, 'poll-interval-seconds'),
+    claimBatchSize: numberOption(options, 'claim-batch-size'),
+  });
+  return client.installExtension(body);
+}
+
+async function extensionRunCommand(args: string[], env: NodeJS.ProcessEnv) {
+  const options = readOptions(args);
+  const transport = options.transport === 'pull' ? 'pull' : 'push';
+  const port = numberOption(options, 'port') ?? 3020;
+  const started = await runExtensionRunner({ transport, port, env });
+  return { ...started, transport, port };
 }
 
 async function extensionTestCommand(args: string[], cwd: string, client: KiketClient, readStdin: CliDeps['readStdin']) {
@@ -298,8 +355,31 @@ function readOptions(args: string[]) {
       network: { type: 'string' },
       'request-submission': { type: 'boolean' },
       template: { type: 'string' },
+      key: { type: 'string' },
+      'display-name': { type: 'string' },
+      version: { type: 'string' },
+      transport: { type: 'string' },
+      'endpoint-url': { type: 'string' },
+      port: { type: 'string' },
+      'poll-interval-seconds': { type: 'string' },
+      'claim-batch-size': { type: 'string' },
+      visibility: { type: 'string' },
+      'git-url': { type: 'string' },
+      ref: { type: 'string' },
+      'publisher-contact': { type: 'string' },
+      'docs-url': { type: 'string' },
     },
   }).values;
+}
+
+function numberOption(options: Record<string, unknown>, key: string) {
+  const value = options[key];
+  if (typeof value === 'string' && value.length > 0) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) throw new Error(`Invalid numeric --${key}.`);
+    return parsed;
+  }
+  return undefined;
 }
 
 function output(value: unknown, format: OutputFormat, text?: string): CliResult {

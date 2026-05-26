@@ -10,8 +10,8 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "lint": "biome check --diagnostic-level=error src/client.ts src/commands.ts src/extension-scaffold.ts src/index.ts src/local-config.ts tests/commands.test.ts tests/extension-scaffold.test.ts",
-    "test": "vitest run tests/commands.test.ts tests/extension-scaffold.test.ts",
+    "lint": "biome check --diagnostic-level=error src/client.ts src/commands.ts src/extension-install.ts src/extension-publish.ts src/extension-run.ts src/extension-scaffold.ts src/index.ts src/local-config.ts tests/commands.test.ts tests/extension-install.test.ts tests/extension-publish.test.ts tests/extension-scaffold.test.ts",
+    "test": "vitest run tests/commands.test.ts tests/extension-install.test.ts tests/extension-publish.test.ts tests/extension-scaffold.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

@@ -23,6 +23,9 @@ describe('kiket CLI', () => {
     expect(body.help).toContain('kiket extension init');
     expect(body.help).toContain('kiket extension validate');
     expect(body.help).toContain('kiket extension test');
+    expect(body.help).toContain('kiket extension install');
+    expect(body.help).toContain('kiket extension run');
+    expect(body.help).toContain('kiket extension publish');
     expect(body.help.toLowerCase()).not.toMatch(/\b(project|projects|issue|issues|task|tasks)\b/);
   });
 
