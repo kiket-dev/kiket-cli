@@ -265,7 +265,7 @@ async function extensionCommand(
     return extensionInstallCommand(args.slice(1), client);
   }
   if (subcommand === 'run') {
-    return extensionRunCommand(args.slice(1), deps.env ?? process.env);
+    return extensionRunCommand(args.slice(1), process.env);
   }
   if (subcommand === 'publish') {
     requireApiAuth(clientOptions);
