@@ -3,15 +3,19 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import type { KiketClient } from '@kiket/api-client';
 import { type CliEnv, createClient, requireApiAuth } from './client.js';
+import { buildExtensionInstallBody, parseExtensionInstallTransport } from './extension-install.js';
+import {
+  buildExtensionPublishBody,
+  parseExtensionPublishVisibility,
+  readManifestForPublish,
+} from './extension-publish.js';
+import { runExtensionRunner } from './extension-run.js';
 import {
   type ExtensionTemplate,
   initExtension,
   readExtensionManifest,
   validateExtensionManifestYaml,
 } from './extension-scaffold.js';
-import { buildExtensionInstallBody, parseExtensionInstallTransport } from './extension-install.js';
-import { buildExtensionPublishBody, parseExtensionPublishVisibility, readManifestForPublish } from './extension-publish.js';
-import { runExtensionRunner } from './extension-run.js';
 import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
 
 export interface CliDeps {
