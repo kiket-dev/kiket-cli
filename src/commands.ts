@@ -48,6 +48,7 @@ Usage:
   kiket report verify --id <report-id>
   kiket anchor create --subject-type <type> --subject-id <id> --subject-hash <hash> [--workspace-id <id>] [--chain <chain>] [--network <network>] [--request-submission]
   kiket anchor verify --id <anchor-id>
+  kiket investigate case <case-id> [--format json]
   kiket extension init [--root <path>] [--force] [--template webhook|github|slack]
   kiket extension validate [--file kiket-extension.yaml]
   kiket extension test --file <json>
@@ -123,6 +124,9 @@ export async function runCli(argv: string[], deps: CliDeps = {}): Promise<CliRes
       case 'anchor':
         requireApiAuth(clientOptions);
         return output(await anchorCommand(commandArgs[0], commandArgs.slice(1), client), format);
+      case 'investigate':
+        requireApiAuth(clientOptions);
+        return output(await investigateCommand(commandArgs, client), format);
       case 'extension':
         return output(await extensionCommand(commandArgs, cwd, client, clientOptions, deps.readStdin), format);
       default:
@@ -182,6 +186,18 @@ async function scanCommand(args: string[], client: KiketClient) {
     idempotencyKey: stringOption(options, 'idempotency-key') ?? `cli:${crypto.randomUUID()}`,
     eventId: stringOption(options, 'event-id'),
   });
+}
+
+async function investigateCommand(args: string[], client: KiketClient) {
+  if (args[0] !== 'case') throw new Error('Use `kiket investigate case <case-id>`.');
+  const caseId = args[1];
+  if (!caseId) throw new Error('Missing case id.');
+  const [context, graph, proofPacket] = await Promise.all([
+    client.getCaseContext(caseId),
+    client.getCaseGraph(caseId),
+    client.generateProofPacket(caseId),
+  ]);
+  return { context, graph, proofPacket };
 }
 
 async function findingsListCommand(args: string[], client: KiketClient) {

@@ -1,2 +1,5 @@
+minimumReleaseAge: 0
+verifyDepsBeforeRun: false
+
 packages:
   - .
