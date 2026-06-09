@@ -119,9 +119,18 @@ export function validateConfigText(yaml: string, filePath?: string) {
   try {
     const definition = parseWorkflow(yaml);
     const errors = validateGraph(definition);
-    return { valid: errors.length === 0, errors, kind: 'workflow' as const, definition: definition as unknown as Record<string, unknown> };
+    return {
+      valid: errors.length === 0,
+      errors,
+      kind: 'workflow' as const,
+      definition: definition as unknown as Record<string, unknown>,
+    };
   } catch (error) {
-    return { valid: false, errors: [error instanceof Error ? error.message : 'Invalid process config'], kind: 'workflow' as const };
+    return {
+      valid: false,
+      errors: [error instanceof Error ? error.message : 'Invalid process config'],
+      kind: 'workflow' as const,
+    };
   }
 }
 
