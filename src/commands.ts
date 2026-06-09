@@ -16,7 +16,14 @@ import {
   readExtensionManifest,
   validateExtensionManifestYaml,
 } from './extension-scaffold.js';
-import { initConfig, migrateConfig, validateConfigText } from './local-config.js';
+import {
+  initConfig,
+  isDashboardConfigPath,
+  looksLikeDashboardYaml,
+  migrateConfig,
+  validateConfigText,
+  validateDashboardConfigText,
+} from './local-config.js';
 
 export interface CliDeps {
   cwd?: string;
@@ -150,8 +157,12 @@ async function validateCommand(
   clientOptions: Parameters<typeof requireApiAuth>[0],
 ) {
   const options = readOptions(args);
-  const yaml = await readFile(resolvePath(cwd, required(options, 'file')), 'utf8');
-  if (options.local === true) return validateConfigText(yaml);
+  const file = required(options, 'file');
+  const yaml = await readFile(resolvePath(cwd, file), 'utf8');
+  if (isDashboardConfigPath(file) || looksLikeDashboardYaml(yaml)) {
+    return validateDashboardConfigText(yaml);
+  }
+  if (options.local === true) return validateConfigText(yaml, file);
   requireApiAuth(clientOptions);
   return client.validateConfig(yaml);
 }

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -50,6 +50,35 @@ describe('kiket CLI', () => {
     expect(result.exitCode).toBe(0);
     const body = JSON.parse(result.stdout) as { valid: boolean };
     expect(body.valid).toBe(true);
+  });
+
+  it('validates dashboard YAML locally via query catalog rules', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'kiket-cli-dashboard-'));
+    const dashboardPath = path.join(cwd, '.kiket/dashboards/process-health.yaml');
+    await mkdir(path.dirname(dashboardPath), { recursive: true });
+    await writeFile(
+      dashboardPath,
+      `dashboard:
+  key: process-health
+  name: Process health
+layout:
+  columns: 12
+widgets:
+  - id: open_cases
+    type: metric
+    title: Open cases
+    query_key: workspace.open_cases_count
+    position: { x: 0, y: 0, w: 3, h: 1 }
+`,
+      'utf8',
+    );
+
+    const result = await runCli(['validate', '--file', '.kiket/dashboards/process-health.yaml', '--local'], { cwd });
+    expect(result.exitCode).toBe(0);
+    const body = JSON.parse(result.stdout) as { valid: boolean; kind: string; dashboardKey?: string };
+    expect(body.valid).toBe(true);
+    expect(body.kind).toBe('dashboard');
+    expect(body.dashboardKey).toBe('process-health');
   });
 
   it('initializes file-backed compliance config non-interactively', async () => {

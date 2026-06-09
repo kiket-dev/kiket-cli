@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { dashboard as dashboardCore } from '@kiket/editor-core';
 import { migrateWorkflowConfigYaml, parseWorkflow, validateGraph } from '@kiket/engine';
 
 export interface InitResult {
@@ -80,13 +81,47 @@ export async function initConfig(root: string, force = false): Promise<InitResul
   return { root, created, skipped };
 }
 
-export function validateConfigText(yaml: string) {
+export function isDashboardConfigPath(filePath: string): boolean {
+  return filePath.replace(/\\/g, '/').includes('.kiket/dashboards/');
+}
+
+export function looksLikeDashboardYaml(yaml: string): boolean {
+  return /(^|\n)dashboard:\s*$/m.test(yaml) || yaml.includes('\ndashboard:\n');
+}
+
+export function validateDashboardConfigText(yaml: string) {
+  try {
+    const model = dashboardCore.dashboardYamlToModel(yaml);
+    const result = dashboardCore.validateDashboard(model);
+    const errors = [
+      ...result.errors.map((item) => `${item.path}: ${item.message}`),
+      ...result.warnings.map((item) => `${item.path}: ${item.message}`),
+    ];
+    return {
+      valid: result.valid,
+      errors,
+      kind: 'dashboard' as const,
+      dashboardKey: model.dashboard.key,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      errors: [error instanceof Error ? error.message : 'Invalid dashboard YAML'],
+      kind: 'dashboard' as const,
+    };
+  }
+}
+
+export function validateConfigText(yaml: string, filePath?: string) {
+  if ((filePath && isDashboardConfigPath(filePath)) || looksLikeDashboardYaml(yaml)) {
+    return validateDashboardConfigText(yaml);
+  }
   try {
     const definition = parseWorkflow(yaml);
     const errors = validateGraph(definition);
-    return { valid: errors.length === 0, errors, definition: definition as unknown as Record<string, unknown> };
+    return { valid: errors.length === 0, errors, kind: 'workflow' as const, definition: definition as unknown as Record<string, unknown> };
   } catch (error) {
-    return { valid: false, errors: [error instanceof Error ? error.message : 'Invalid process config'] };
+    return { valid: false, errors: [error instanceof Error ? error.message : 'Invalid process config'], kind: 'workflow' as const };
   }
 }
 

@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@kiket/api-client": "workspace:*",
+    "@kiket/editor-core": "workspace:*",
     "@kiket/engine": "workspace:*",
     "yaml": "^2.9.0"
   },
